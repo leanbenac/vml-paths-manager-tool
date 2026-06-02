@@ -1,5 +1,5 @@
 // ============================================
-// VML Paths Manager Tool — Popup: UI Logic
+// VML Paths Manager Assistant — Popup: UI Logic
 // Versioning + Documentation Tooltips
 // ============================================
 
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function showTooltip(btn) {
     const moduleId = btn.dataset.module;
     if (typeof MODULES_DOCUMENTATION === 'undefined') {
-      console.warn('[VML Paths Manager Tool] MODULES_DOCUMENTATION is not loaded.');
+      console.warn('[VML Paths Manager Assistant] MODULES_DOCUMENTATION is not loaded.');
       return;
     }
 

@@ -1,5 +1,5 @@
 // ============================================
-// VML Content Tool v2.0 — Popup: Publish Path Generator
+// VML Paths Manager Assistant — Popup: Publish Path Generator
 // Módulo de UI para copiar el path de publicación formateado (Pages/CFs/XFs/Assets)
 // ============================================
 

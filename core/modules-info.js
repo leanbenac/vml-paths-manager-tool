@@ -1,5 +1,5 @@
 // =======================================================
-// VML Paths Manager Tool — In-App Documentation Dictionary
+// VML Paths Manager Assistant — In-App Documentation Dictionary
 // Centralized rules, descriptions, and validations (English)
 // =======================================================
 
@@ -11,6 +11,15 @@ const MODULES_DOCUMENTATION = {
       "Automatically scans the current page to detect active assets.",
       "Allows manual path entry if an asset is not automatically detected.",
       "Automatically copies the generated publish path to your clipboard upon creation."
+    ]
+  },
+  jiraPathParser: {
+    title: "Jira AEM Path Parser",
+    description: "Extract AEM folder URLs and sub-items (starting with >> or >>>) from Jira descriptions and comments.",
+    validations: [
+      "Press 'SCAN ACTIVE JIRA TICKET' when on a Jira ticket page to scrape automatically.",
+      "Or paste description/comments text manually and press 'GENERATE PATHS FROM PASTE'.",
+      "Constructs full JCR paths and generates direct editor links for nested components."
     ]
   }
 };

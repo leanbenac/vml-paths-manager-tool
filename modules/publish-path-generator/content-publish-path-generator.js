@@ -1,5 +1,5 @@
 // ============================================
-// VML Content Tool v2.0 — Content: Publish Path Generator
+// VML Paths Manager Assistant — Content: Publish Path Generator
 // Extrae datos de la página actual para generar paths de publicación
 // ============================================
 
@@ -130,14 +130,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               sendResponse({ assets: uniqueAssets });
             })
             .catch(err => {
-              console.warn("[VML Content Tool] Sling JCR fetch failed, fallback to DOM only:", err);
+              console.warn("[VML Paths Manager Assistant] Sling JCR fetch failed, fallback to DOM only:", err);
               const uniqueAssets = Array.from(new Set(assets));
               sendResponse({ assets: uniqueAssets });
             });
           return true; // Mantener canal abierto para respuesta asíncrona
         }
       } catch (e) {
-        console.error("[VML Content Tool] Failed to parse URL for JCR fetch:", e);
+        console.error("[VML Paths Manager Assistant] Failed to parse URL for JCR fetch:", e);
       }
     }
 
@@ -202,7 +202,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ items: items, path: cleanPath });
         })
         .catch(err => {
-          console.warn("[VML Content Tool] Sling folder fetch failed, fallback to DOM scraping:", err);
+          console.warn("[VML Paths Manager Assistant] Sling folder fetch failed, fallback to DOM scraping:", err);
           // Fallback to DOM Scraping
           const titles = new Set();
           
@@ -235,7 +235,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ items: Array.from(titles), path: cleanPath });
         });
     } catch (e) {
-      console.error("[VML Content Tool] Failed to process folder publish path:", e);
+      console.error("[VML Paths Manager Assistant] Failed to process folder publish path:", e);
       sendResponse({ error: "Failed to parse folder structure." });
     }
     return true; // Keep channel open

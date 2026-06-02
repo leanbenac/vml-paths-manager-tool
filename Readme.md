@@ -23,18 +23,43 @@ vml-paths-manager-tool/
 │   └── logo-vml.png               # Branding
 ├── core/
 │   ├── content.css                # Estilos inyectados
+│   ├── modules-info.js            # Base de documentación in-app de la UI
 │   ├── popup.css                  # Estilos de la UI
 │   ├── popup.html                 # UI principal del popup
-│   └── popup-ui.js                # Helper principal de UI
+│   └── popup-ui.js                # Control de Tooltips y Versión de la UI
 ├── modules/
-│   └── publish-path-generator/    # Módulo: Publish Path Generator / Finder
-├── .antigravityrules              # Reglas de Agente AI
+│   ├── publish-path-generator/    # Módulo: Publish Path Generator / Finder (Comentado/Oculto temporalmente)
+│   └── jira-path-parser/          # Módulo: Jira AEM Path Parser
+├── scratch/                       # Scripts de prueba del parseador de paths
 └── Readme.md                      # Documentación del usuario
 ```
 
 ## ⚙️ Uso
 
-### Publish Path Finder & Generator
+### Jira AEM Path Parser 🎫 (Fase 1 Completada)
+Módulo centralizado diseñado para escanear, analizar y consolidar de forma automática los paths de AEM descritos o comentados en los tickets de Jira.
+
+* **Escaneo Automático con un Clic**:
+  - Navega a cualquier ticket en tu servidor de Jira (ej. `jira.uhub.biz` o `*.atlassian.net`) y presiona **"SCAN ACTIVE JIRA TICKET"**.
+  - El motor de scraping de la extensión capturará automáticamente la descripción del ticket y todo el historial de comentarios (soportando los contenedores `.comment-body`, `.action-body.floated` y `.action-body.flooded`).
+* **Parseador de Texto Manual e HTML**:
+  - Si prefieres, puedes pegar cualquier fragmento de texto o código fuente HTML directo de los comentarios en la sección *"Or Paste Jira Ticket Description/Comments"*.
+  - La extensión sanitiza el HTML y unescapa caracteres especiales automáticamente (como `&gt;&gt;` -> `>>`), aislando de forma segura el texto y las rutas AEM.
+* **Vinculación Dinámica e Inteligente**:
+  - Identifica las URLs de AEM de tipo Sites, Assets, Fragmentos o Consolas de autoría.
+  - Vincula de forma directa los elementos hijos declarados abajo con `>>` o `>>>` al path JCR de la carpeta contenedora.
+  - **Filtro de Enlaces Sueltos**: El algoritmo descarta automáticamente URLs individuales que actúan como links de verificación y no poseen sub-elementos declarados abajo, evitando duplicados o basura en la lista.
+* **Consolidación y Deduplicación**:
+  - Si los componentes de una misma carpeta de AEM están dispersos a lo largo de varios comentarios del ticket, la herramienta los agrupa de forma automática bajo un único bloque JCR unificado.
+* **Enlaces Directos de Edición ("Edit")**:
+  - Genera botones **"Edit"** dinámicos al lado de cada sub-elemento que abren el fragmento de contenido o página directamente en el editor correspondiente de AEM (`/editor.html`).
+* **Formatos de Copiado**:
+  - **Copy JCR Paths**: Copia al portapapeles una lista limpia con las rutas JCR absolutas listas para herramientas internas o scripts.
+  - **Copy Formatted**: Copia la lista de paths con el formato de publicación listo para pegar directamente en un comentario de Jira.
+
+---
+
+### Publish Path Finder & Generator (Módulo Oculto)
 * Diseñado para acelerar la creación de tickets de publicación para **Content Fragments**, **Experience Fragments**, **Pages**, **VDM Author**, **Assets** (imágenes, videos, documentos) y **Carpetas de AEM (Assets, XFs, Sites, VDM)**.
 * **Copia Inteligente de URL**:
   - Para *Content Fragments*: Convierte la URL del editor (`/editor.html/content/dam/...`) a la carpeta contenedora en Assets (`/assets.html/content/dam/...`) eliminando el último segmento de la URL.
