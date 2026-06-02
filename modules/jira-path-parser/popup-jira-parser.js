@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const jiraResultsContainer = document.getElementById('jiraResultsContainer');
   const jiraStatusEl = document.getElementById('jiraStatus');
   const activeTicketInfo = document.getElementById('activeTicketInfo');
+  const btnScanSubtasks = document.getElementById('btnScanSubtasks');
+  const subtasksScanContainer = document.getElementById('subtasksScanContainer');
+  const btnDownloadTxt = document.getElementById('btnDownloadTxt');
 
   if (!btnParsePaste || !jiraTextInput || !jiraResultsContainer) return;
 
@@ -145,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentParsedData = data;
     jiraResultsContainer.innerHTML = '';
 
-    if (data.length === 0) {
+     if (data.length === 0) {
       jiraResultsContainer.innerHTML = `
         <div style="color: var(--text-muted); font-size: 11px; text-align: center; padding: 20px; border: 1px dashed var(--border); border-radius: var(--radius-sm); width: 100%;">
           No AEM paths or elements detected. Make sure AEM URLs start with http/https and elements start with >> or >>>.
@@ -153,11 +156,13 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       if (btnCopyAllJcr) btnCopyAllJcr.style.display = 'none';
       if (btnCopyFormatted) btnCopyFormatted.style.display = 'none';
+      if (btnDownloadTxt) btnDownloadTxt.style.display = 'none';
       return;
     }
 
     if (btnCopyAllJcr) btnCopyAllJcr.style.display = 'block';
     if (btnCopyFormatted) btnCopyFormatted.style.display = 'block';
+    if (btnDownloadTxt) btnDownloadTxt.style.display = 'block';
 
     data.forEach((group, groupIdx) => {
       const card = document.createElement('div');
@@ -348,6 +353,17 @@ document.addEventListener('DOMContentLoaded', () => {
             activeTicketInfo.style.display = 'inline-block';
           }
 
+          // Toggle subtask button if subtasks detected
+          if (response.subtasks && response.subtasks.length > 0) {
+            if (subtasksScanContainer && btnScanSubtasks) {
+              subtasksScanContainer.style.display = 'block';
+              btnScanSubtasks.textContent = `SCAN ALL SUB-TASKS (${response.subtasks.length})`;
+              btnScanSubtasks.dataset.subtasks = response.subtasks.join(',');
+            }
+          } else {
+            if (subtasksScanContainer) subtasksScanContainer.style.display = 'none';
+          }
+
           showJiraStatus(`Scraped ticket ${response.issueKey} successfully!`);
         });
 
@@ -355,6 +371,76 @@ document.addEventListener('DOMContentLoaded', () => {
         btnScanJira.disabled = false;
         showJiraStatus("An error occurred during scanning.", true);
         console.error(err);
+      }
+    });
+  }
+
+  // Button: Scan All Sub-tasks
+  if (btnScanSubtasks) {
+    btnScanSubtasks.addEventListener('click', async () => {
+      const keysStr = btnScanSubtasks.dataset.subtasks;
+      if (!keysStr) return;
+      const keys = keysStr.split(',').filter(Boolean);
+      if (keys.length === 0) return;
+
+      try {
+        btnScanSubtasks.disabled = true;
+        if (btnScanJira) btnScanJira.disabled = true;
+        clearJiraStatus();
+        showJiraStatus(`Scanning subtasks (0/${keys.length})...`);
+
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab || !tab.id) {
+          showJiraStatus("Could not query active tab.", true);
+          btnScanSubtasks.disabled = false;
+          if (btnScanJira) btnScanJira.disabled = false;
+          return;
+        }
+
+        const baseUrl = new URL(tab.url).origin;
+        const fetchedTexts = [];
+
+        // Concurrency queue (batch size of 5)
+        const batchSize = 5;
+        for (let i = 0; i < keys.length; i += batchSize) {
+          const batchKeys = keys.slice(i, i + batchSize);
+          const promises = batchKeys.map(async (key) => {
+            try {
+              const res = await fetch(`${baseUrl}/rest/api/2/issue/${key}?fields=description,comment`);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const json = await res.json();
+              const desc = json.fields?.description || '';
+              const comments = (json.fields?.comment?.comments || []).map(c => c.body || '').join('\n\n');
+              return `${desc}\n\n=== COMMENTS ===\n\n${comments}`;
+            } catch (err) {
+              console.warn(`Failed to fetch details for subtask ${key}:`, err);
+              return '';
+            }
+          });
+
+          const batchResults = await Promise.all(promises);
+          fetchedTexts.push(...batchResults);
+          
+          const completedCount = Math.min(i + batchSize, keys.length);
+          showJiraStatus(`Scanning subtasks (${completedCount}/${keys.length})...`);
+        }
+
+        const consolidatedText = fetchedTexts.join('\n\n=== NEXT SUBTASK ===\n\n');
+        
+        // Populate text area for user review/editing
+        jiraTextInput.value = consolidatedText;
+
+        // Parse and render
+        const data = extractAEMData(consolidatedText);
+        renderParsedResults(data);
+
+        showJiraStatus(`Scraped ${keys.length} subtasks successfully!`);
+      } catch (err) {
+        showJiraStatus("An error occurred during subtask scanning.", true);
+        console.error(err);
+      } finally {
+        btnScanSubtasks.disabled = false;
+        if (btnScanJira) btnScanJira.disabled = false;
       }
     });
   }
@@ -404,6 +490,47 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Button: Download TXT File
+  if (btnDownloadTxt) {
+    btnDownloadTxt.addEventListener('click', () => {
+      if (currentParsedData.length === 0) return;
+
+      const formattedGroups = [];
+      currentParsedData.forEach(group => {
+        const groupLines = [
+          "PUBLISHING PATH",
+          "",
+          group.baseUrl
+        ];
+
+        group.elements.forEach(el => {
+          groupLines.push("");
+          groupLines.push(`>>${el.name}`);
+        });
+
+        formattedGroups.push(groupLines.join('\n'));
+      });
+
+      const text = formattedGroups.join('\n\n');
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      
+      const ticketInfo = activeTicketInfo.textContent || 'subtasks';
+      const cleanKey = ticketInfo.replace('Ticket: ', '').trim();
+      const filename = `publish-paths-${cleanKey || 'export'}.txt`;
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showJiraStatus("Downloaded TXT File!");
+    });
+  }
+
   // Check if we are currently on a Jira tab to enable/highlight the Scan button
   async function checkActiveTab() {
     try {
@@ -414,6 +541,21 @@ document.addEventListener('DOMContentLoaded', () => {
           btnScanJira.style.background = 'linear-gradient(135deg, var(--accent), var(--accent-light))';
           btnScanJira.style.color = '#fff';
           btnScanJira.style.borderColor = 'var(--accent-light)';
+
+          // Query if there are subtasks on the page immediately
+          chrome.tabs.sendMessage(tab.id, { action: 'checkSubtasks' }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.warn("checkSubtasks error (normal if content script not loaded yet):", chrome.runtime.lastError);
+              return;
+            }
+            if (response && response.subtasks && response.subtasks.length > 0) {
+              if (subtasksScanContainer && btnScanSubtasks) {
+                subtasksScanContainer.style.display = 'block';
+                btnScanSubtasks.textContent = `SCAN ALL SUB-TASKS (${response.subtasks.length})`;
+                btnScanSubtasks.dataset.subtasks = response.subtasks.join(',');
+              }
+            }
+          });
         }
       }
     } catch (e) {

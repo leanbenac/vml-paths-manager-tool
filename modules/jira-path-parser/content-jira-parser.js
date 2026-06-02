@@ -115,14 +115,37 @@ function detectLinkedIssues() {
   return Array.from(keys);
 }
 
+function detectSubtasks() {
+  const keys = [];
+  const subtaskRows = document.querySelectorAll('#issuetable tr.issuerow[data-issuekey]');
+  subtaskRows.forEach(row => {
+    const key = row.getAttribute('data-issuekey');
+    if (key && !keys.includes(key)) {
+      keys.push(key);
+    }
+  });
+  return keys;
+}
+
 // Message Listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'checkSubtasks') {
+    try {
+      const subtasks = detectSubtasks();
+      sendResponse({ subtasks: subtasks });
+    } catch (err) {
+      sendResponse({ subtasks: [] });
+    }
+    return true;
+  }
+
   if (request.action === 'getJiraIssueDetails') {
     try {
       const issueKey = getJiraKey();
       const description = scrapeDescription();
       const comments = scrapeComments();
       const linkedIssues = detectLinkedIssues();
+      const subtasks = detectSubtasks();
 
       sendResponse({
         success: true,
@@ -130,6 +153,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         description: description,
         comments: comments,
         linkedIssues: linkedIssues,
+        subtasks: subtasks,
         fullText: `${description}\n\n=== COMMENTS ===\n\n${comments}`
       });
     } catch (err) {
