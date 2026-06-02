@@ -1,0 +1,7 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Archivos a ignorar al exportar el ZIP
+.antigravityrules export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore

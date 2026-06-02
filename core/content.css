@@ -1,0 +1,50 @@
+/* Fallback styles — overridden by dynamic injection in content.js */
+.highlight-nbsp {
+  background-color: rgba(255, 0, 0, 1) !important;
+  outline: 2px solid rgba(255, 0, 0, 1) !important;
+  display: inline-block;
+  min-width: 5px;
+  min-height: 1em;
+  border-radius: 2px;
+}
+
+/* Exact Disclosure Finder — Green highlight */
+.highlight-exact-match {
+  background-color: rgba(74, 222, 128, 0.3) !important;
+  outline: 2px solid rgba(74, 222, 128, 0.6) !important;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+/* Active match (currently navigated to) */
+.highlight-exact-match--active {
+  background-color: rgba(74, 222, 128, 0.55) !important;
+  outline: 3px solid rgba(74, 222, 128, 1) !important;
+  box-shadow: 0 0 14px rgba(74, 222, 128, 0.45);
+}
+
+/* HTag Visualizer */
+.htag-badge {
+  background-color: #7289da !important;
+  color: #ffffff !important;
+  font-size: 20px !important;
+  font-family: sans-serif !important;
+  font-weight: bold !important;
+  padding: 4px 9px !important;
+  margin-left: 8px !important;
+  border-radius: 4px !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+  line-height: 1 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+  pointer-events: none !important;
+  z-index: 999999 !important;
+  position: relative !important;
+}
+
+.htag-badge-h1 { background-color: #e74c3c !important; }
+.htag-badge-h2 { background-color: #e67e22 !important; }
+.htag-badge-h3 { background-color: #f1c40f !important; color: #333 !important; }
+.htag-badge-h4 { background-color: #2ecc71 !important; }
+.htag-badge-h5 { background-color: #3498db !important; }
+.htag-badge-h6 { background-color: #9b59b6 !important; }

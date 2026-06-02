@@ -1,0 +1,88 @@
+# VML Paths Manager Tool — AI Agent Rules & Architecture Guideline
+
+Welcome to the **VML Paths Manager Tool** repository. This file serves as the definitive guidelines, architecture map, and AppSec requirements for any AI Agent working on this codebase. Always adhere strictly to these patterns to maintain code quality, security, and performance.
+
+---
+
+## 📌 Project Context
+* **Name:** VML Paths Manager Tool
+* **Type:** Google Chrome Extension (Manifest V3)
+* **Author:** VML Argentina - Engineering Team
+* **Purpose:** A lightweight, high-performance publish path finder and generator tailored for Project Managers, Leads, and Publishers.
+
+---
+
+## 🏗️ Folder Structure & Architecture
+The extension follows a **strict modular structure**. Keep popup UI handlers separate from page execution scripts.
+
+```text
+vml-paths-manager-tool/
+├── manifest.json                  # Extension configuration (Manifest V3)
+├── assets/
+│   └── logo-vml.png               # Branding assets
+├── core/
+│   ├── content.css                # Injected CSS styles
+│   ├── popup.css                  # UI styles (premium dark mode theme)
+│   ├── popup.html                 # Main popup UI (clean path finder layout)
+│   └── popup-ui.js                # Core UI helper (handles versioning and tooltips)
+├── modules/
+│   └── publish-path-generator/    # Publish Path Generator/Finder module
+│       ├── content-publish-path-generator.js
+│       └── popup-publish-path-generator.js
+├── .antigravityrules              # AI Agent System Instructions (This file)
+└── Readme.md                      # End-user documentation
+```
+
+---
+
+## 🔄 Core Flows
+
+### 1. Publish Path Generator / Finder
+* **Trigger:** User clicks "Generate Publish Path" or "Generate Asset Path" in the extension popup.
+* **Action:** `popup-publish-path-generator.js` sends requests to the content script or queries the active tab URL.
+* **Execution:** `content-publish-path-generator.js` scrapes active tab information, auto-detects references to `/content/dam/` assets using DOM scanners and Sling JCR API Queries (`.3.json` fetches), and processes parent/child structures for folder views (`.2.json` fetches).
+* **Result:** Formats the final URLs and titles, placing a double-line string ready for Jira ticket copy-paste onto the user's clipboard.
+
+---
+
+## 🧩 Extension Integration Conventions
+When adding a new module, you **must** follow this strict integration pattern:
+1. **Module Folder:** Create a new folder inside `modules/` (e.g., `modules/[module-name]/`).
+2. **Popup UI Logic:** Place all UI triggers and state queries in `modules/[module-name]/popup-[module-name].js`.
+3. **Content Script Logic:** Place actual page traversal or DOM editing logic in `modules/[module-name]/content-[module-name].js`.
+4. **UI Integration:** Register the module inside `core/popup.html`. Add the modular `<script>` block at the bottom.
+5. **Manifest Registration:** Append the newly created content script path to the `"js"` files inside the `"content_scripts"` array of `manifest.json`.
+6. **Styling Integration:** Place all new style declarations at the end of `core/content.css` or `core/popup.css`.
+
+---
+
+## 🛡️ Strict AppSec & Quality Rules
+Every developer and AI agent working on this extension must satisfy the following security and design parameters. Failure to do so will reject pull requests:
+
+* **No innerHTML (XSS Protection):** Never use `.innerHTML` or `eval()`. Use `document.createElement()` and `element.textContent` or `element.innerText` to prevent DOM XSS vulnerabilities.
+* **CSS Injection Prevention:** Never construct dynamic CSS strings using raw user inputs. Opt for static styling rules in `content.css` and use class assignment (`classList.add`) or strictly validated types.
+* **Safe Iframe Traversal:** Do not attempt cross-origin traversal which triggers browser security errors. Only query iframes that satisfy the **Same-Origin (CORS)** rule. Let other iframe entities fail silently.
+* **Isolated World Constraints:** Keep in mind that content scripts execute in isolated scopes provided by Chrome. Do not rely on variables declared in the page's host scope, nor mutate properties on the host window object directly.
+* **Minimal Scope Permissions:** Limit manifest configuration strictly to required privileges (`storage`, `activeTab`, `scripting`, `webNavigation`).
+
+---
+
+## 📝 Documentation Integrity Rule
+> [!IMPORTANT]
+> **Keep Documentation strictly synchronized.**
+> Whenever you modify codebase files or implement a new feature, you MUST assess if `Readme.md` or `.antigravityrules` needs revision. Never leave features undocumented. Keep all changes clean, commented, and explained in the primary documentation files.
+
+---
+
+## 🤖 Automatic Version Increment Rule
+> [!IMPORTANT]
+> **Automatic Version Increment on Commit:**
+> Each time a Git commit is executed, the `manifest.json` version number MUST automatically increment by `0.1` (e.g., `3.7` $\rightarrow$ `3.8`).
+> This behavior is automated via a local Git `pre-commit` hook (stored at `.git/hooks/pre-commit`). If modifying codebase configuration or building features, ensure this hook remains intact so version releases are tracked accurately on every commit.
+
+---
+
+## 🤖 Agent Response & Token Optimization Rules
+> [!IMPORTANT]
+> * **Language:** All AI Agent responses, explanations, and summaries MUST be written exclusively in **English**, regardless of the language utilized by the user.
+> * **Conciseness & Token Optimization:** Keep all answers extremely short, concise, and direct. Maximize token efficiency by avoiding conversational fluff, redundant pleasantries, or verbose code summaries. Let clean code modifications, diffs, and precise files speak for themselves.

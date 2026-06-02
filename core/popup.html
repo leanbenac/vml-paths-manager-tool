@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+
+  <!-- Header: VML Logo + App Name -->
+  <div class="header">
+    <img src="../assets/logo-vml.png" alt="VML" class="header-logo">
+    <div class="header-info">
+      <h1 class="header-title">VML Paths Manager</h1>
+      <p class="header-version" id="appVersion">v3.7 - Internal Release</p>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <div class="main-container" style="padding: 16px; min-height: 250px;">
+    
+    <!-- Module: Publish Path Finder & Generator -->
+    <div class="tool-section">
+      <div class="tool-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <div class="tool-header-left" style="display: flex; gap: 10px; align-items: center;">
+          <div class="module-icon module-icon--publish-path" style="background: rgba(45, 158, 158, 0.1); color: var(--accent-light); padding: 8px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px;">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
+          </div>
+          <div class="module-header-info">
+            <div class="module-title-row" style="display: flex; align-items: center; gap: 6px;">
+              <h3 class="module-title" style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text);">Publish Path Finder</h3>
+              <button class="info-btn" data-module="publishPathGenerator" type="button" aria-label="Show info" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); border-radius: 50%; color: var(--text-muted); cursor: pointer; font-size: 10px; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; padding: 0;">i</button>
+            </div>
+            <p class="module-desc" style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-muted);">Generate formatted asset/page paths for Jira tickets.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tool-body">
+        <div class="publish-path-controls" style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="btnGeneratePublishPath" class="btn-search" style="width: 100%;">GENERATE PUBLISH PATH (PAGE/CF/XF/VDM/FOLDER)</button>
+        </div>
+        
+        <!-- Dynamic container of detected assets -->
+        <div id="detectedAssetsContainer" style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
+          <label class="field-label" style="margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            <span>Detected Assets on Page</span>
+            <span id="assetDetectionStatus" class="asset-status-badge status-scanning">Scanning...</span>
+          </label>
+          <div id="detectedAssetsList" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px;">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Manual input of asset path -->
+        <div class="field-group" style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 0;">
+          <label class="field-label" style="font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; display: block;">Generate Asset Publish Path Manually</label>
+          <textarea id="manualAssetInput" placeholder="Paste asset path here (e.g. /content/dam/na/ford/en_us/images/.../file.tif)" rows="2" style="width: 100%; min-width: 100%; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); padding: 8px; font-size: 11px; line-height: 1.4; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; resize: none;"></textarea>
+          <button id="btnGenerateAssetPublishPath" class="btn-search" style="width: 100%; margin-top: 4px;">GENERATE ASSET PATH</button>
+        </div>
+
+        <p id="publishPathStatus" class="autofill-status" style="display: none; margin-top: 10px;"></p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer: VML Branding -->
+  <div class="footer">
+    <img src="../assets/logo-vml.png" alt="VML" class="footer-logo">
+    <div class="footer-info">
+      <span class="footer-label">DEVELOPED BY:</span>
+      <strong class="footer-brand">VML ARGENTINA - ENGINEERING TEAM</strong>
+    </div>
+  </div>
+
+  <!-- Modular scripts -->
+  <script src="modules-info.js"></script>
+  <script src="popup-ui.js"></script>
+  
+  <!-- Custom Modal Overlay -->
+  <div id="vmlModal" class="vml-modal-overlay" style="display: none;">
+    <div class="vml-modal-content">
+      <div class="vml-modal-header">
+        <h3 id="vmlModalTitle" class="vml-modal-title">Review Required</h3>
+        <button id="vmlModalClose" class="vml-modal-close">&times;</button>
+      </div>
+      <div class="vml-modal-body">
+        <p id="vmlModalText"></p>
+        <ul id="vmlModalList" class="vml-modal-list"></ul>
+      </div>
+      <div class="vml-modal-footer">
+        <button id="vmlModalOkBtn" class="btn-search" style="width:100%;">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../modules/publish-path-generator/popup-publish-path-generator.js"></script>
+</body>
+
+</html>

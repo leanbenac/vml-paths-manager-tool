@@ -1,0 +1,596 @@
+/* ============================================
+   VML Paths Manager Tool — Dark Premium UI
+   ============================================ */
+
+/* --- Google Fonts --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* --- Design Tokens --- */
+:root {
+  --bg-body: #0a0a0a;
+  --bg-header: #0e0e0e;
+  --bg-module: #111111;
+  --bg-footer: #0c0c0c;
+  --bg-input: rgba(255, 255, 255, 0.04);
+  --bg-btn: #163434;
+  --bg-btn-hover: #1e4a4a;
+
+  --text-primary: #f0f0f0;
+  --text-secondary: #8a8a8a;
+  --text-muted: #555555;
+
+  --accent: #2d9e9e;
+  --accent-light: #3cc0c0;
+  --accent-glow: rgba(45, 158, 158, 0.35);
+  --accent-green: #4ade80;
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-accent: rgba(45, 158, 158, 0.25);
+
+  --gold: #c9a96e;
+  --gold-light: #dfc598;
+  --gold-dark: #a8864a;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+}
+
+/* --- Reset --- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 420px;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: var(--bg-body);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+/* ============================================
+   HEADER — Logo + App Name
+   ============================================ */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 24px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+}
+
+.header-logo {
+  width: 46px;
+  height: 46px;
+  filter: brightness(2) contrast(1.1);
+  flex-shrink: 0;
+}
+
+.header-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+
+.header-version {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-top: 3px;
+  letter-spacing: 0.3px;
+}
+
+/* ============================================
+   MAIN CONTAINER & TOOL SECTIONS
+   ============================================ */
+.main-container {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-module);
+}
+
+.tool-section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================
+   FIELD GROUPS
+   ============================================ */
+.field-group {
+  margin-bottom: 18px;
+}
+
+.field-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+/* ============================================
+   TEXTAREAS & INPUTS
+   ============================================ */
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  margin-bottom: 12px;
+  min-height: 80px;
+}
+
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+  font-size: 11px;
+}
+
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(45, 158, 158, 0.12);
+}
+
+/* ============================================
+   BUTTONS & CONTROLS
+   ============================================ */
+.btn-search {
+  padding: 8px 20px;
+  background: var(--bg-btn);
+  color: var(--accent-light);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-search:hover {
+  background: var(--bg-btn-hover);
+  box-shadow: 0 0 16px var(--accent-glow);
+  border-color: var(--accent);
+}
+
+.btn-search:active {
+  transform: scale(0.97);
+}
+
+.btn-search:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ============================================
+   STATUS & MESSAGES
+   ============================================ */
+.autofill-status {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+  transition: all 0.3s ease;
+}
+
+.autofill-status--success {
+  color: var(--accent-green);
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.autofill-status--error {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+.autofill-status--info {
+  color: var(--accent-light);
+  background: rgba(45, 158, 158, 0.08);
+  border: 1px solid rgba(45, 158, 158, 0.2);
+}
+
+/* ============================================
+   DETECTED ASSETS STYLING
+   ============================================ */
+.detected-asset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  transition: all 0.3s ease;
+}
+
+.detected-asset-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-accent);
+}
+
+.detected-asset-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.detected-asset-icon {
+  flex-shrink: 0;
+  color: var(--accent-light);
+  display: flex;
+  align-items: center;
+}
+
+.detected-asset-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+}
+
+.detected-asset-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-copy-asset {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  background: var(--bg-btn);
+  color: var(--accent-light);
+  border: 1px solid var(--border-accent);
+  border-radius: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-copy-asset:hover {
+  background: var(--bg-btn-hover);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.btn-copy-asset:active {
+  transform: scale(0.96);
+}
+
+/* --- Asset Status Badge --- */
+.asset-status-badge {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+
+.status-scanning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.05);
+}
+
+.status-detected {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.05);
+}
+
+.status-empty {
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.03);
+}
+
+/* --- Row Auto Badge --- */
+.row-auto-badge {
+  font-size: 8px;
+  font-weight: 700;
+  color: #a855f7;
+  background: rgba(168, 85, 247, 0.08);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scanning-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent-light);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ============================================
+   IN-APP DOCUMENTATION — Info Buttons & Tooltips
+   ============================================ */
+.info-btn {
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 14px;
+  height: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  line-height: 1;
+  text-align: center;
+  flex-shrink: 0;
+  padding-bottom: 1px;
+}
+
+.info-btn:hover {
+  color: var(--accent-light);
+  border-color: var(--accent-light);
+  transform: scale(1.15);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.info-tooltip {
+  position: fixed;
+  z-index: 10000;
+  width: 290px;
+  background: rgba(13, 13, 13, 0.96);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 16px var(--accent-glow);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.96) translateY(4px);
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: none;
+}
+
+.info-tooltip.visible {
+  display: block;
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.tooltip-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.tooltip-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.tooltip-validations-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tooltip-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent-light);
+}
+
+.tooltip-validations-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tooltip-validations-list li {
+  font-size: 10.5px;
+  color: var(--text-primary);
+  position: relative;
+  padding-left: 14px;
+  line-height: 1.35;
+}
+
+.tooltip-validations-list li::before {
+  content: "✦";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent-light);
+  font-size: 9px;
+}
+
+/* ============================================
+   CUSTOM MODAL OVERLAY
+   ============================================ */
+.vml-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.vml-modal-content {
+  background: #1c1c1f;
+  border: 1px solid rgba(223, 197, 152, 0.3);
+  border-radius: var(--radius-md);
+  width: 90%;
+  max-width: 380px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.9), 0 0 40px rgba(223, 197, 152, 0.05);
+  display: flex;
+  flex-direction: column;
+  animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes modalPop {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.vml-modal-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.vml-modal-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold-light);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.vml-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.vml-modal-close:hover {
+  color: var(--text-primary);
+}
+
+.vml-modal-body {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--text-primary);
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.vml-modal-list {
+  margin-top: 12px;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.vml-modal-footer {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* ============================================
+   FOOTER — VML Branding
+   ============================================ */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  background: var(--bg-footer);
+  border-top: 1px solid var(--border);
+}
+
+.footer-logo {
+  width: 36px;
+  height: 36px;
+  filter: brightness(2) contrast(1.1);
+  flex-shrink: 0;
+}
+
+.footer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footer-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.footer-brand {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--text-primary);
+}

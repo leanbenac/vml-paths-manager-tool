@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "VML Paths Manager Tool",
+  "version": "3.7",
+  "description": "Suite de herramientas de gestión de publish paths para Project Managers, Leads y Publishers de VML.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "webNavigation"
+  ],
+  "action": {
+    "default_popup": "core/popup.html",
+    "default_icon": "assets/logo-vml.png"
+  },
+  "icons": {
+    "128": "assets/logo-vml.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "modules/publish-path-generator/content-publish-path-generator.js"
+      ],
+      "css": [
+        "core/content.css"
+      ],
+      "all_frames": true
+    }
+  ]
+}
