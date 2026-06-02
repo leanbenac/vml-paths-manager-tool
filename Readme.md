@@ -1,93 +1,100 @@
 # VML Paths Manager Tool 🛠️
 
-Una herramienta de gestión y generación de paths de publicación diseñada específicamente para optimizar las tareas de los Project Managers, Leads y Publishers de VML, especialmente dentro de ecosistemas como Adobe Experience Manager (AEM).
-
-## 📋 Requisitos
-* Google Chrome (o cualquier navegador basado en Chromium).
-* Los archivos de la extensión descargados en una carpeta local.
-
-## 🚀 Instalación
-1. Descarga o clona este repositorio en tu máquina.
-2. Abre Google Chrome y navega a `chrome://extensions/`.
-3. Activa el **"Modo de desarrollador"** (Developer mode) en el interruptor de la esquina superior derecha.
-4. Haz clic en el botón **"Cargar extensión sin empaquetar"** (Load unpacked).
-5. Selecciona la carpeta raíz que contiene el archivo `manifest.json`.
-6. ¡Listo! Fija la extensión en tu barra de herramientas para un acceso rápido.
-
-## 🏗️ Arquitectura de Carpetas
-
-```text
-vml-paths-manager-tool/
-├── manifest.json                  # Configuración (Manifest V3)
-├── assets/
-│   └── logo-vml.png               # Branding
-├── core/
-│   ├── content.css                # Estilos inyectados
-│   ├── modules-info.js            # Base de documentación in-app de la UI
-│   ├── popup.css                  # Estilos de la UI
-│   ├── popup.html                 # UI principal del popup
-│   └── popup-ui.js                # Control de Tooltips y Versión de la UI
-├── modules/
-│   ├── publish-path-generator/    # Módulo: Publish Path Generator / Finder (Comentado/Oculto temporalmente)
-│   └── jira-path-parser/          # Módulo: Jira AEM Path Parser
-├── scratch/                       # Scripts de prueba del parseador de paths
-└── Readme.md                      # Documentación del usuario
-```
-
-## ⚙️ Uso
-
-### Jira AEM Path Parser 🎫 (Fase 1 Completada)
-Módulo centralizado diseñado para escanear, analizar y consolidar de forma automática los paths de AEM descritos o comentados en los tickets de Jira.
-
-* **Escaneo Automático con un Clic**:
-  - Navega a cualquier ticket en tu servidor de Jira (ej. `jira.uhub.biz` o `*.atlassian.net`) y presiona **"SCAN ACTIVE JIRA TICKET"**.
-  - El motor de scraping de la extensión capturará automáticamente la descripción del ticket y todo el historial de comentarios (soportando los contenedores `.comment-body`, `.action-body.floated` y `.action-body.flooded`).
-* **Parseador de Texto Manual e HTML**:
-  - Si prefieres, puedes pegar cualquier fragmento de texto o código fuente HTML directo de los comentarios en la sección *"Or Paste Jira Ticket Description/Comments"*.
-  - La extensión sanitiza el HTML y unescapa caracteres especiales automáticamente (como `&gt;&gt;` -> `>>`), aislando de forma segura el texto y las rutas AEM.
-* **Vinculación Dinámica e Inteligente**:
-  - Identifica las URLs de AEM de tipo Sites, Assets, Fragmentos o Consolas de autoría.
-  - Vincula de forma directa los elementos hijos declarados abajo con `>>` o `>>>` al path JCR de la carpeta contenedora.
-  - **Filtro de Enlaces Sueltos**: El algoritmo descarta automáticamente URLs individuales que actúan como links de verificación y no poseen sub-elementos declarados abajo, evitando duplicados o basura en la lista.
-* **Consolidación y Deduplicación**:
-  - Si los componentes de una misma carpeta de AEM están dispersos a lo largo de varios comentarios del ticket, la herramienta los agrupa de forma automática bajo un único bloque JCR unificado.
-* **Enlaces Directos de Edición ("Edit")**:
-  - Genera botones **"Edit"** dinámicos al lado de cada sub-elemento que abren el fragmento de contenido o página directamente en el editor correspondiente de AEM (`/editor.html`).
-* **Formatos de Copiado**:
-  - **Copy JCR Paths**: Copia al portapapeles una lista limpia con las rutas JCR absolutas listas para herramientas internas o scripts.
-  - **Copy Formatted**: Copia la lista de paths con el formato de publicación listo para pegar directamente en un comentario de Jira.
+Una suite de herramientas para Google Chrome diseñada específicamente para optimizar el flujo de trabajo de Project Managers, Leads y Publishers de VML, facilitando la gestión, extracción y generación de rutas de publicación (Publishing Paths) dentro del ecosistema de Adobe Experience Manager (AEM) y tickets de Jira.
 
 ---
 
-### Publish Path Finder & Generator (Módulo Oculto)
-* Diseñado para acelerar la creación de tickets de publicación para **Content Fragments**, **Experience Fragments**, **Pages**, **VDM Author**, **Assets** (imágenes, videos, documentos) y **Carpetas de AEM (Assets, XFs, Sites, VDM)**.
-* **Copia Inteligente de URL**:
-  - Para *Content Fragments*: Convierte la URL del editor (`/editor.html/content/dam/...`) a la carpeta contenedora en Assets (`/assets.html/content/dam/...`) eliminando el último segmento de la URL.
-  - Para *Experience Fragments*: Convierte la URL del editor (`ui#/aem/editor.html/content/experience-fragments/...`) a la carpeta contenedora (`/aem/experience-fragments.html/content/experience-fragments/...`) eliminando la variación final (ej. `master.html`).
-  - Para *Pages*: Convierte la URL del editor (`ui#/aem/editor.html/content/...`) a la carpeta contenedora en Sites (`/sites.html/content/...`) eliminando el nombre de página final (ej. `f-rodriguez.html`).
-  - Para *VDM Author*: Convierte la URL del editor (`/aem/vdm.html/edit/content/...`) a la consola contenedora en browse (`/aem/vdm.html/browse/content/...`) eliminando la última sección contextual (ej. `/options`).
-  - Para *Assets* (Automático y Manual): Convierte el path del asset (`/content/dam/.../imagen.jpg`) a la URL de su carpeta contenedora en Assets DAM (`/assets.html/content/dam/...`) eliminando el nombre del archivo.
-  - Para *Carpetas de AEM*: Estando parado sobre cualquier carpeta en consolas de AEM (Assets DAM, Experience Fragments, Sites o VDM), copia la URL limpia de la consola e incluye los títulos de todos los elementos contenidos en ella en formato de lista.
-* **Detección Automática Híbrida de Assets**: Al abrir el módulo, la extensión realiza una búsqueda en segundo plano en dos etapas:
-  - **DOM Scanner**: Escanea los inputs/textareas editables del DOM buscando paths `/content/dam/` con extensión.
-  - **Sling JCR API Query**: Realiza una petición asíncrona al repositorio JCR del Content Fragment (`/content/dam/....3.json`) capturando de forma invisible y garantizada todos los assets del fragmento, resolviendo el problema de campos que aún no han sido renderizados o se encuentran en pestañas no activas.
-  - **Indicador de Estado en Tiempo Real**: Esta sección cuenta con un elegante badge indicador de estado en su cabecera (`Scanning...`, `Auto-Detected`, o `Not Detected`) que refleja el resultado del escaneo de assets en tiempo real. Adicionalmente, cada fila de la lista se decora con un tag visual `Auto` para certificar su detección directa.
-* **Copia Manual de Assets**: Cuenta con un área de texto dedicada para pegar de forma manual cualquier path de asset (ej. copiado de Excel) y generar su path formateado.
-* **Extracción de Título o Nombre Nativo**: 
-  - Para CFs y XFs: Captura el título real desde el DOM (`div.cfm-editor-title-fragment` o `div.editor-GlobalBar-pageTitle`).
-  - Para VDM Author: Captura la sección activa (ej. `Options`, `Equipments`, `Specs`) desde el header.
-  - Para Pages y Assets: Extrae el nombre o archivo directamente del final del path (eliminando la extensión `.html` si aplica).
-  - Para Carpetas de AEM: Extrae el título real (`dc:title` o `jcr:title`) de cada elemento hijo del repositorio JCR vía Sling API (con fallback de raspado del DOM si la llamada API fallara).
-* **Formato Listo para Tickets**: Copia al portapapeles una cadena formateada con la URL de la carpeta padre seguida de `>>> [Título/Nombre]`, lista para ser pegada en tus tickets de Jira o herramientas internas.
+## 📋 Requisitos e Instalación
 
--------------------------------------------------
+1. **Requisitos**: Google Chrome (o cualquier navegador basado en Chromium).
+2. **Instalación**:
+   - Descarga o clona este repositorio en tu máquina.
+   - Abre Google Chrome y navega a `chrome://extensions/`.
+   - Activa el **"Modo de desarrollador"** (Developer mode) en la esquina superior derecha.
+   - Haz clic en **"Cargar extensión sin empaquetar"** (Load unpacked).
+   - Selecciona la carpeta raíz del proyecto (que contiene el archivo `manifest.json`).
+   - Fija la extensión en la barra de herramientas para acceder con un clic.
+
+---
+
+## 🏗️ Arquitectura del Proyecto
+
+```text
+vml-paths-manager-tool/
+├── manifest.json                  # Configuración de la extensión (Manifest V3)
+├── assets/
+│   └── logo-vml.png               # Logotipo y Branding
+├── core/
+│   ├── content.css                # Estilos inyectados en las pestañas
+│   ├── modules-info.js            # Diccionario de documentación in-app
+│   ├── popup.css                  # Estilos premium oscuros de la UI del popup
+│   ├── popup.html                 # Estructura principal del popup
+│   └── popup-ui.js                # Control de tooltips dinámicos de ayuda
+├── modules/
+│   ├── publish-path-generator/    # Módulo: Generador de Paths desde AEM (Oculto temporalmente)
+│   └── jira-path-parser/          # Módulo: Extractor de Paths desde Jira (Activo)
+├── scratch/                       # Scripts de prueba del parseador
+└── Readme.md                      # Documentación del proyecto
+```
+
+---
+
+## ⚙️ Descripción de los Módulos
+
+La extensión cuenta con dos módulos principales diseñados para tareas opuestas pero complementarias:
+
+### 1. Jira AEM Path Parser 🎫 (Módulo Activo)
+Este módulo automatiza la **lectura y consolidación de paths de publicación** directamente desde los comentarios y descripciones de tickets de Jira, evitando el trabajo de buscar y verificar manualmente cada link.
+
+* **Flujo de Un Solo Clic (Scan & Auto-Copy)**:
+  - Estando en cualquier ticket de tu servidor de Jira (ej. `jira.uhub.biz` o `*.atlassian.net`), haz clic en **"SCAN ACTIVE JIRA TICKET"**.
+  - El motor de scraping captura automáticamente la descripción del ticket y todo el historial de comentarios.
+  - **Copiado al Portapapeles Automático**: Los paths detectados se procesan, clasifican y se copian directamente en tu portapapeles de manera automática.
+* **Escaneo de Sub-tareas en Lote**:
+  - Si el ticket tiene sub-tareas asociadas, el botón **"SCAN ALL SUB-TASKS"** se habilitará mostrando la cantidad de sub-tareas.
+  - Al presionarlo, realiza peticiones asíncronas concurrentes a la API de Jira para compilar y unificar los paths de todas las sub-tareas en un solo paso.
+* **Agrupación y Jerarquía Inteligente**:
+  - Los resultados se clasifican automáticamente y se organizan bajo la siguiente jerarquía:
+    1. **Assets**: Recursos de DAM, imágenes, videos o documentos (`/content/dam/...` excluyendo fragmentos).
+    2. **VDM**: Páginas o consolas VDM (`/vdm` o `/vdm.html`).
+    3. **CF (Content Fragments)**: Fragmentos de contenido (`/content/dam/.../cf/`).
+    4. **XF (Experience Fragments)**: Fragmentos de experiencia (`/content/experience-fragments/...`).
+    5. **Pages**: Páginas de sitios AEM (`/content/...` que no pertenezcan a las categorías anteriores).
+  - Deduplica nombres de recursos de manera insensible a mayúsculas/minúsculas (ej. evita repetir `3 column` y `3 Column`).
+* **Formato de Exportación Compacto**:
+  - El formato copiado al portapapeles (o descargado) agrupa los elementos bajo una única cabecera por categoría, optimizando el espacio en los comentarios de Jira:
+    ```text
+    PUBLISHING PATH - CF
+
+    https://author-p154363-e1620826.adobeaemcloud.com/assets.html/content/dam/na/cf/ford/en_ca/nameplate/mustang/2026/models/dark-horse-sc
+    >>> settings
+    >>> specs
+    ```
+  - **Botones Auxiliares**: Incluye botones para volver a copiar el formato consolidado (**COPY FORMATTED**) o descargar un archivo estructurado (**DOWNLOAD TXT**).
+
+---
+
+### 2. Publish Path Finder & Generator 🚀 (Módulo Oculto)
+Este módulo realiza la tarea inversa: ayuda al usuario a **armar los paths de publicación** correctos a partir de la pestaña activa de AEM para luego poder crear tickets o comentarios en Jira.
+
+* **Conversión de URLs del Editor a Consola**:
+  - Detecta si estás posicionado sobre un editor de AEM y convierte automáticamente la URL activa en la ruta de su consola contenedora correspondiente:
+    - **Pages**: De `/editor.html/content/.../pagina.html` a la carpeta contenedora en Sites (`/sites.html/content/...`).
+    - **Content Fragments (CF)**: De `/editor.html/content/dam/...` a su carpeta contenedora en Assets DAM (`/assets.html/content/dam/...`).
+    - **Experience Fragments (XF)**: De `/editor.html/content/experience-fragments/...` a su consola contenedora, removiendo la variación (ej. `/master.html`).
+    - **VDM Author**: Convierte la edición de VDM a la consola de exploración (`/aem/vdm.html/browse/...`).
+* **Detección Asíncrona de Assets**:
+  - Cuenta con un **DOM Scanner** que busca paths DAM con extensiones en los campos de la página.
+  - Emplea un **Sling JCR API Query** que consulta la estructura del fragmento en segundo plano (`/content/dam/....3.json`) para capturar de forma invisible e infalible todos los assets asociados al fragmento, incluso si están en campos ocultos o pestañas inactivas.
+* **Formato Listo para Pegar**:
+  - Copia la ruta de la carpeta contenedora seguida de `>>> [Título/Nombre del elemento]` para ser pegada en tus especificaciones de Jira.
+
+---
+
 ## 🛡️ Seguridad y Privacidad (AppSec)
 
-Esta extensión ha sido desarrollada siguiendo estrictamente los altos estándares de seguridad y las mejores prácticas para **Manifest V3** de Chrome:
-
-1. **Zero Data Tracking**: La extensión no recolecta, almacena, ni transmite ningún tipo de información. Todo el procesamiento ocurre de manera local en el navegador.
-2. **XSS Protection (DOM Sanitization)**: Se evita el uso de `innerHTML` o `eval()`. La inyección de resaltado se realiza mediante `classList` y manipulación segura de nodos de texto.
-3. **Prevención de CSS Injection**: Los estilos se inyectan mediante plantillas estáticas y validaciones estrictas.
-4. **Iframe Traversal Seguro**: El algoritmo de búsqueda accede exclusivamente a iframes que cumplen con la política de **mismo origen (Same-Origin)**.
-5. **Isolated World**: El script opera en un mundo aislado provisto por Chrome, garantizando que no pueda interferir con la lógica de negocio ni acceder a variables globales del sitio web.
-6. **Permisos Mínimos**: Se utiliza `storage` para persistir preferencias y `activeTab` para validar la seguridad de la página.
+La extensión cumple estrictamente con los estándares recomendados por Google para **Manifest V3**:
+1. **Zero Data Tracking**: No recopila, transmite ni almacena datos fuera del entorno local del navegador. Todo el procesamiento se realiza en memoria.
+2. **Protección XSS**: Evita el uso de `eval()` e `innerHTML` dinámico sin sanitizar para evitar inyecciones maliciosas.
+3. **Mismo Origen (Same-Origin)**: Accede de forma segura a los iframes de AEM validando políticas de origen cruzado.
+4. **Permisos Mínimos**: Utiliza exclusivamente `storage` para recordar preferencias y `activeTab` para comunicarse con las pestañas activas del usuario de forma segura.

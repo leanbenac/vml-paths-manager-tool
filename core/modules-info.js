@@ -18,7 +18,7 @@ const MODULES_DOCUMENTATION = {
     description: "Extract AEM folder URLs and sub-items (starting with >> or >>>) from Jira descriptions and comments.",
     validations: [
       "Press 'SCAN ACTIVE JIRA TICKET' when on a Jira ticket page to scrape automatically.",
-      "Or paste description/comments text manually and press 'GENERATE PATHS FROM PASTE'.",
+      "Scans subtasks in batch mode when available.",
       "Constructs full JCR paths and generates direct editor links for nested components."
     ]
   }

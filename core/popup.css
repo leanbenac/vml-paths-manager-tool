@@ -594,3 +594,24 @@ textarea:focus {
   letter-spacing: 0.8px;
   color: var(--text-primary);
 }
+
+/* Category Header Divider styling */
+.category-header {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-light);
+  margin-top: 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-header::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(60, 192, 192, 0.15);
+}

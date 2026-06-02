@@ -17,8 +17,7 @@
     </div>
   </div>
 
-  <!-- Main Container -->
-  <div class="main-container" style="padding: 16px; min-height: 250px;">
+  <div class="main-container" style="padding: 16px; min-height: auto;">
     
     <!-- 
     Module: Publish Path Finder & Generator (Temporarily Commented Out)
@@ -99,33 +98,17 @@
           <span id="activeTicketInfo" class="asset-status-badge status-scanning" style="display: none; padding: 6px 10px; font-size: 10px; font-weight: 700;">Scanning...</span>
         </div>
 
-        <!-- Scan Subtasks Button (only shown if subtasks are detected) -->
-        <div id="subtasksScanContainer" style="display: none; margin-bottom: 12px;">
-          <button id="btnScanSubtasks" class="btn-search" style="width: 100%; background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: #fff; border-color: var(--gold-light);">SCAN ALL SUB-TASKS (0)</button>
-        </div>
-
-        <!-- Manual text area input -->
-        <div class="field-group" style="margin-bottom: 12px;">
-          <label class="field-label" style="font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; display: block;">Or Paste Jira Ticket Description/Comments</label>
-          <textarea id="jiraTextInput" placeholder="Paste issue description or comments here..." rows="3" style="width: 100%; min-width: 100%; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); padding: 8px; font-size: 11px; line-height: 1.4; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; resize: none;"></textarea>
-          <button id="btnParsePaste" class="btn-search" style="width: 100%; margin-top: 4px;">GENERATE PATHS FROM PASTE</button>
+        <!-- Scan Subtasks Button -->
+        <div id="subtasksScanContainer" style="margin-bottom: 12px;">
+          <button id="btnScanSubtasks" class="btn-search" style="width: 100%; background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: #fff; border-color: var(--gold-light);" disabled>SCAN ALL SUB-TASKS (0)</button>
         </div>
 
         <p id="jiraStatus" class="autofill-status" style="display: none; margin-bottom: 12px;"></p>
 
-        <!-- Parsed Results -->
-        <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">Parsed AEM Paths</span>
-            <div style="display: flex; gap: 6px;">
-              <button id="btnCopyAllJcr" class="btn-copy-asset" style="display: none; padding: 4px 8px; font-size: 9px; font-weight: 700;">Copy JCR Paths</button>
-              <button id="btnCopyFormatted" class="btn-copy-asset" style="display: none; padding: 4px 8px; font-size: 9px; font-weight: 700;">Copy Formatted</button>
-              <button id="btnDownloadTxt" class="btn-copy-asset" style="display: none; padding: 4px 8px; font-size: 9px; font-weight: 700; background: var(--gold-dark); color: #fff; border-color: var(--gold-light);">Download TXT</button>
-            </div>
-          </div>
-          <div id="jiraResultsContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px;">
-            <!-- Dynamically populated card items -->
-          </div>
+        <!-- Scan Action Buttons (shown after successful scan) -->
+        <div id="scanActionButtons" style="display: none; gap: 8px; margin-top: 8px; margin-bottom: 12px;">
+          <button id="btnCopyFormatted" class="btn-search" style="flex: 1;">COPY FORMATTED</button>
+          <button id="btnDownloadTxt" class="btn-search" style="flex: 1; background: var(--gold-dark); color: #fff; border-color: var(--gold-light);">DOWNLOAD TXT</button>
         </div>
       </div>
     </div>

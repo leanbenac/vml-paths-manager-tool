@@ -4,19 +4,16 @@
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
-  const btnParsePaste = document.getElementById('btnParsePaste');
   const btnScanJira = document.getElementById('btnScanJira');
-  const btnCopyAllJcr = document.getElementById('btnCopyAllJcr');
   const btnCopyFormatted = document.getElementById('btnCopyFormatted');
-  const jiraTextInput = document.getElementById('jiraTextInput');
-  const jiraResultsContainer = document.getElementById('jiraResultsContainer');
+  const scanActionButtons = document.getElementById('scanActionButtons');
   const jiraStatusEl = document.getElementById('jiraStatus');
   const activeTicketInfo = document.getElementById('activeTicketInfo');
   const btnScanSubtasks = document.getElementById('btnScanSubtasks');
   const subtasksScanContainer = document.getElementById('subtasksScanContainer');
   const btnDownloadTxt = document.getElementById('btnDownloadTxt');
 
-  if (!btnParsePaste || !jiraTextInput || !jiraResultsContainer) return;
+  if (!btnScanJira) return;
 
   let currentParsedData = [];
 
@@ -30,6 +27,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function clearJiraStatus() {
     if (jiraStatusEl) jiraStatusEl.style.display = 'none';
+  }
+
+  function updateSubtasksButton(subtasks) {
+    if (!btnScanSubtasks) return;
+    const count = (subtasks && subtasks.length) || 0;
+    btnScanSubtasks.textContent = `SCAN ALL SUB-TASKS (${count})`;
+    if (count > 0) {
+      btnScanSubtasks.disabled = false;
+      btnScanSubtasks.dataset.subtasks = subtasks.join(',');
+    } else {
+      btnScanSubtasks.disabled = true;
+      btnScanSubtasks.removeAttribute('data-subtasks');
+    }
+  }
+
+  // Initialize subtasks button state
+  updateSubtasksButton([]);
+
+  // --- CACHE MANAGEMENT ---
+  function saveScanCache(url, issueKey, data, subtasks) {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      const cacheObj = {
+        issueKey: issueKey,
+        data: data,
+        subtasks: subtasks || [],
+        timestamp: Date.now()
+      };
+      chrome.storage.local.set({ [url]: cacheObj });
+    }
+  }
+
+  function loadScanCache(url, callback) {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get([url], (result) => {
+        callback(result[url]);
+      });
+    } else {
+      callback(null);
+    }
   }
 
   // Common copy helper
@@ -60,6 +96,29 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error("DOMParser error:", e);
       return html;
     }
+  }
+
+  function getCategory(jcrPath, url) {
+    const pathLower = jcrPath.toLowerCase();
+    const urlLower = url.toLowerCase();
+    
+    if (pathLower.includes('/experience-fragments/')) {
+      return 'XF';
+    }
+    if (urlLower.includes('/vdm') || pathLower.includes('/vdm')) {
+      return 'VDM';
+    }
+    if (pathLower.includes('/content/dam/')) {
+      if (pathLower.includes('/cf/') || pathLower.includes('/content-fragments/')) {
+        return 'CF';
+      } else {
+        return 'Assets';
+      }
+    }
+    if (pathLower.startsWith('/content/')) {
+      return 'Pages';
+    }
+    return 'Pages';
   }
 
   function extractAEMData(jiraText) {
@@ -101,6 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   baseUrl: cleanUrl,
                   origin: origin,
                   folderJcrPath: folderJcrPath,
+                  category: getCategory(folderJcrPath, cleanUrl),
                   elements: []
                 };
                 results.push(currentGroup);
@@ -112,14 +172,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       // Detect child elements starting with >> or >>>
-      else if (cleanLine.match(/^>{2,3}/) && currentGroup) {
-        // Strip '>' and leading spaces
-        const elementName = cleanLine.replace(/^>{2,3}\s*/, '');
+      else if (cleanLine.match(/^>{2,}/) && currentGroup) {
+        // Strip any sequence of leading '>' and spaces
+        const elementName = cleanLine.replace(/^[>\s]+/, '');
         if (elementName) {
           const childJcrPath = `${currentGroup.folderJcrPath}/${elementName}`;
           
-          // Deduplicate elements under the same folder
-          const exists = currentGroup.elements.some(el => el.name === elementName);
+          // Deduplicate elements under the same folder case-insensitively
+          const exists = currentGroup.elements.some(el => el.name.toLowerCase().trim() === elementName.toLowerCase().trim());
           if (!exists) {
             const isCfOrXfOrPage = childJcrPath.includes('/content/dam/') || 
                                    childJcrPath.includes('/content/experience-fragments/') || 
@@ -143,162 +203,35 @@ document.addEventListener('DOMContentLoaded', () => {
     return results.filter(group => group.elements.length > 0);
   }
 
-  // --- 2. RENDER RESULTS ---
-  function renderParsedResults(data) {
-    currentParsedData = data;
-    jiraResultsContainer.innerHTML = '';
-
-     if (data.length === 0) {
-      jiraResultsContainer.innerHTML = `
-        <div style="color: var(--text-muted); font-size: 11px; text-align: center; padding: 20px; border: 1px dashed var(--border); border-radius: var(--radius-sm); width: 100%;">
-          No AEM paths or elements detected. Make sure AEM URLs start with http/https and elements start with >> or >>>.
-        </div>
-      `;
-      if (btnCopyAllJcr) btnCopyAllJcr.style.display = 'none';
-      if (btnCopyFormatted) btnCopyFormatted.style.display = 'none';
-      if (btnDownloadTxt) btnDownloadTxt.style.display = 'none';
-      return;
-    }
-
-    if (btnCopyAllJcr) btnCopyAllJcr.style.display = 'block';
-    if (btnCopyFormatted) btnCopyFormatted.style.display = 'block';
-    if (btnDownloadTxt) btnDownloadTxt.style.display = 'block';
-
-    data.forEach((group, groupIdx) => {
-      const card = document.createElement('div');
-      card.className = 'detected-folder-card';
-      card.style.background = 'rgba(255, 255, 255, 0.02)';
-      card.style.border = '1px solid var(--border)';
-      card.style.borderRadius = 'var(--radius-sm)';
-      card.style.padding = '10px';
-      card.style.marginBottom = '10px';
-      card.style.display = 'flex';
-      card.style.flexDirection = 'column';
-      card.style.gap = '8px';
-
-      // Folder Header
-      const headerDiv = document.createElement('div');
-      headerDiv.style.display = 'flex';
-      headerDiv.style.alignItems = 'center';
-      headerDiv.style.justifyContent = 'space-between';
-      headerDiv.style.gap = '8px';
-
-      const folderTitle = document.createElement('span');
-      folderTitle.className = 'folder-title';
-      folderTitle.textContent = group.folderJcrPath.split('/').pop() || 'AEM Folder';
-      folderTitle.title = group.folderJcrPath;
-      folderTitle.style.fontSize = '12px';
-      folderTitle.style.fontWeight = '700';
-      folderTitle.style.color = 'var(--accent-light)';
-      folderTitle.style.overflow = 'hidden';
-      folderTitle.style.textOverflow = 'ellipsis';
-      folderTitle.style.whiteSpace = 'nowrap';
-
-      const actionGroup = document.createElement('div');
-      actionGroup.style.display = 'flex';
-      actionGroup.style.gap = '4px';
-
-      const openFolderBtn = document.createElement('button');
-      openFolderBtn.className = 'btn-copy-asset';
-      openFolderBtn.textContent = 'Open';
-      openFolderBtn.addEventListener('click', () => {
-        window.open(group.baseUrl, '_blank');
-      });
-
-      const copyFolderJcr = document.createElement('button');
-      copyFolderJcr.className = 'btn-copy-asset';
-      copyFolderJcr.textContent = 'Copy JCR';
-      copyFolderJcr.addEventListener('click', () => {
-        copyText(group.folderJcrPath, "Folder JCR Path copied!");
-      });
-
-      actionGroup.appendChild(openFolderBtn);
-      actionGroup.appendChild(copyFolderJcr);
-      headerDiv.appendChild(folderTitle);
-      headerDiv.appendChild(actionGroup);
-      card.appendChild(headerDiv);
-
-      // Elements List
-      if (group.elements.length > 0) {
-        const elementsList = document.createElement('div');
-        elementsList.style.display = 'flex';
-        elementsList.style.flexDirection = 'column';
-        elementsList.style.gap = '6px';
-        elementsList.style.paddingLeft = '8px';
-        elementsList.style.borderLeft = '2px solid rgba(45, 158, 158, 0.2)';
-
-        group.elements.forEach(el => {
-          const row = document.createElement('div');
-          row.style.display = 'flex';
-          row.style.alignItems = 'center';
-          row.style.justifyContent = 'space-between';
-          row.style.gap = '10px';
-
-          const nameSpan = document.createElement('span');
-          nameSpan.textContent = el.name;
-          nameSpan.title = el.jcrPath;
-          nameSpan.style.fontSize = '11px';
-          nameSpan.style.color = 'var(--text-primary)';
-          nameSpan.style.overflow = 'hidden';
-          nameSpan.style.textOverflow = 'ellipsis';
-          nameSpan.style.whiteSpace = 'nowrap';
-          nameSpan.style.flex = '1';
-
-          const rowActions = document.createElement('div');
-          rowActions.style.display = 'flex';
-          rowActions.style.gap = '4px';
-
-          const openElBtn = document.createElement('button');
-          openElBtn.className = 'btn-copy-asset';
-          openElBtn.textContent = 'Edit';
-          openElBtn.style.padding = '3px 6px';
-          openElBtn.addEventListener('click', () => {
-            window.open(el.editorUrl, '_blank');
-          });
-
-          const copyElJcr = document.createElement('button');
-          copyElJcr.className = 'btn-copy-asset';
-          copyElJcr.textContent = 'Copy JCR';
-          copyElJcr.style.padding = '3px 6px';
-          copyElJcr.addEventListener('click', () => {
-            copyText(el.jcrPath, "Element JCR Path copied!");
-          });
-
-          rowActions.appendChild(openElBtn);
-          rowActions.appendChild(copyElJcr);
-          row.appendChild(nameSpan);
-          row.appendChild(rowActions);
-          elementsList.appendChild(row);
-        });
-
-        card.appendChild(elementsList);
-      } else {
-        const noEl = document.createElement('div');
-        noEl.textContent = 'No nested elements found.';
-        noEl.style.fontSize = '10px';
-        noEl.style.color = 'var(--text-muted)';
-        noEl.style.paddingLeft = '8px';
-        card.appendChild(noEl);
-      }
-
-      jiraResultsContainer.appendChild(card);
-    });
-  }
+  // --- 2. FORMAT AND EXPORT RESULTS ---
 
   // --- 3. UI EVENTS ---
 
-  // Button: Parse Paste Text
-  btnParsePaste.addEventListener('click', () => {
-    const txt = jiraTextInput.value.trim();
-    if (!txt) {
-      showJiraStatus("Please paste text first.", true);
-      return;
-    }
-    clearJiraStatus();
-    const data = extractAEMData(txt);
-    renderParsedResults(data);
-    showJiraStatus(`Extracted ${data.length} folders successfully!`);
-  });
+  // Helper to format groups by category hierarchy
+  function getFormattedText(data) {
+    const categoriesOrder = ['Assets', 'VDM', 'CF', 'XF', 'Pages'];
+    const formattedCategories = [];
+    
+    categoriesOrder.forEach(category => {
+      const categoryGroups = data.filter(group => group.category === category);
+      if (categoryGroups.length > 0) {
+        const categoryLines = [
+          `PUBLISHING PATH - ${category.toUpperCase()}`
+        ];
+        
+        categoryGroups.forEach(group => {
+          categoryLines.push("");
+          categoryLines.push(group.baseUrl);
+          group.elements.forEach(el => {
+            categoryLines.push(`>>> ${el.name}`);
+          });
+        });
+        
+        formattedCategories.push(categoryLines.join('\n'));
+      }
+    });
+    return formattedCategories.join('\n\n');
+  }
 
   // Button: Scan Active Jira Tab
   if (btnScanJira) {
@@ -340,12 +273,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
-          // Populate text area with full text for user review/editing
-          jiraTextInput.value = response.fullText;
-
-          // Parse and render
+          // Parse and process
           const data = extractAEMData(response.fullText);
-          renderParsedResults(data);
+          currentParsedData = data;
 
           // Update active ticket info badge
           if (activeTicketInfo && response.issueKey) {
@@ -353,18 +283,30 @@ document.addEventListener('DOMContentLoaded', () => {
             activeTicketInfo.style.display = 'inline-block';
           }
 
-          // Toggle subtask button if subtasks detected
-          if (response.subtasks && response.subtasks.length > 0) {
-            if (subtasksScanContainer && btnScanSubtasks) {
-              subtasksScanContainer.style.display = 'block';
-              btnScanSubtasks.textContent = `SCAN ALL SUB-TASKS (${response.subtasks.length})`;
-              btnScanSubtasks.dataset.subtasks = response.subtasks.join(',');
-            }
-          } else {
-            if (subtasksScanContainer) subtasksScanContainer.style.display = 'none';
+          // Update subtask button details
+          updateSubtasksButton(response.subtasks);
+
+          if (data.length === 0) {
+            showJiraStatus("No AEM paths detected.", true);
+            if (scanActionButtons) scanActionButtons.style.display = 'none';
+            return;
           }
 
-          showJiraStatus(`Scraped ticket ${response.issueKey} successfully!`);
+          // Save to cache
+          saveScanCache(tab.url, response.issueKey, data, response.subtasks);
+
+          // Auto-copy to clipboard
+          const text = getFormattedText(data);
+          navigator.clipboard.writeText(text)
+            .then(() => {
+              showJiraStatus(`Scraped ticket ${response.issueKey || ""} & copied to clipboard!`);
+            })
+            .catch(err => {
+              showJiraStatus("Scraped successfully, but failed to auto-copy.", true);
+              console.error(err);
+            });
+
+          if (scanActionButtons) scanActionButtons.style.display = 'flex';
         });
 
       } catch (err) {
@@ -426,15 +368,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const consolidatedText = fetchedTexts.join('\n\n=== NEXT SUBTASK ===\n\n');
-        
-        // Populate text area for user review/editing
-        jiraTextInput.value = consolidatedText;
 
-        // Parse and render
+        // Parse and process
         const data = extractAEMData(consolidatedText);
-        renderParsedResults(data);
+        currentParsedData = data;
 
-        showJiraStatus(`Scraped ${keys.length} subtasks successfully!`);
+        if (data.length === 0) {
+          showJiraStatus("No AEM paths detected.", true);
+          if (scanActionButtons) scanActionButtons.style.display = 'none';
+          return;
+        }
+
+        // Save to cache
+        const ticketInfo = activeTicketInfo.textContent || '';
+        const cleanKey = ticketInfo.replace('Ticket: ', '').trim();
+        saveScanCache(tab.url, cleanKey, data, keys);
+
+        // Auto-copy to clipboard
+        const text = getFormattedText(data);
+        navigator.clipboard.writeText(text)
+          .then(() => {
+            showJiraStatus(`Scraped ${keys.length} subtasks & copied to clipboard!`);
+          })
+          .catch(err => {
+            showJiraStatus("Scraped subtasks successfully, but failed to auto-copy.", true);
+            console.error(err);
+          });
+
+        if (scanActionButtons) scanActionButtons.style.display = 'flex';
       } catch (err) {
         showJiraStatus("An error occurred during subtask scanning.", true);
         console.error(err);
@@ -445,48 +406,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Button: Copy All JCR Paths
-  if (btnCopyAllJcr) {
-    btnCopyAllJcr.addEventListener('click', () => {
-      if (currentParsedData.length === 0) return;
-
-      const allPaths = [];
-      currentParsedData.forEach(group => {
-        // Add folder path
-        allPaths.push(group.folderJcrPath);
-        // Add all elements paths
-        group.elements.forEach(el => {
-          allPaths.push(el.jcrPath);
-        });
-      });
-
-      copyText(allPaths.join('\n'), "All JCR Paths copied!");
-    });
-  }
-
   // Button: Copy Formatted Paths (Jira ticket template style)
   if (btnCopyFormatted) {
     btnCopyFormatted.addEventListener('click', () => {
       if (currentParsedData.length === 0) return;
-
-      const formattedGroups = [];
-
-      currentParsedData.forEach(group => {
-        const groupLines = [
-          "PUBLISHING PATH",
-          "",
-          group.baseUrl
-        ];
-
-        group.elements.forEach(el => {
-          groupLines.push("");
-          groupLines.push(`>>${el.name}`);
+      const text = getFormattedText(currentParsedData);
+      
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          showJiraStatus("Formatted publish paths copied!");
+          
+          // Visual Feedback Animation
+          const originalText = btnCopyFormatted.textContent;
+          const originalBackground = btnCopyFormatted.style.background;
+          const originalColor = btnCopyFormatted.style.color;
+          const originalBorder = btnCopyFormatted.style.borderColor;
+          
+          btnCopyFormatted.textContent = "COPIED! ✔️";
+          btnCopyFormatted.style.background = "rgba(74, 222, 128, 0.15)";
+          btnCopyFormatted.style.color = "var(--accent-green)";
+          btnCopyFormatted.style.borderColor = "rgba(74, 222, 128, 0.4)";
+          
+          setTimeout(() => {
+            btnCopyFormatted.textContent = originalText;
+            btnCopyFormatted.style.background = originalBackground;
+            btnCopyFormatted.style.color = originalColor;
+            btnCopyFormatted.style.borderColor = originalBorder;
+          }, 1500);
+        })
+        .catch(err => {
+          showJiraStatus("Failed to copy", true);
+          console.error(err);
         });
-
-        formattedGroups.push(groupLines.join('\n'));
-      });
-
-      copyText(formattedGroups.join('\n\n'), "Formatted publish paths copied!");
     });
   }
 
@@ -495,23 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDownloadTxt.addEventListener('click', () => {
       if (currentParsedData.length === 0) return;
 
-      const formattedGroups = [];
-      currentParsedData.forEach(group => {
-        const groupLines = [
-          "PUBLISHING PATH",
-          "",
-          group.baseUrl
-        ];
-
-        group.elements.forEach(el => {
-          groupLines.push("");
-          groupLines.push(`>>${el.name}`);
-        });
-
-        formattedGroups.push(groupLines.join('\n'));
-      });
-
-      const text = formattedGroups.join('\n\n');
+      const text = getFormattedText(currentParsedData);
       const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       
@@ -542,18 +477,36 @@ document.addEventListener('DOMContentLoaded', () => {
           btnScanJira.style.color = '#fff';
           btnScanJira.style.borderColor = 'var(--accent-light)';
 
-          // Query if there are subtasks on the page immediately
-          chrome.tabs.sendMessage(tab.id, { action: 'checkSubtasks' }, (response) => {
-            if (chrome.runtime.lastError) {
-              console.warn("checkSubtasks error (normal if content script not loaded yet):", chrome.runtime.lastError);
-              return;
-            }
-            if (response && response.subtasks && response.subtasks.length > 0) {
-              if (subtasksScanContainer && btnScanSubtasks) {
-                subtasksScanContainer.style.display = 'block';
-                btnScanSubtasks.textContent = `SCAN ALL SUB-TASKS (${response.subtasks.length})`;
-                btnScanSubtasks.dataset.subtasks = response.subtasks.join(',');
+          // 1. Try to load cached data for this page first
+          loadScanCache(tab.url, (cached) => {
+            if (cached) {
+              currentParsedData = cached.data;
+              
+              // Restore active ticket info badge
+              if (activeTicketInfo && cached.issueKey) {
+                activeTicketInfo.textContent = `Ticket: ${cached.issueKey}`;
+                activeTicketInfo.style.display = 'inline-block';
               }
+              
+              // Restore subtask button state
+              updateSubtasksButton(cached.subtasks);
+              
+              // Restore action buttons container
+              if (scanActionButtons && cached.data.length > 0) {
+                scanActionButtons.style.display = 'flex';
+              }
+              
+              showJiraStatus(`Restored cached results for ticket ${cached.issueKey || ""}.`);
+            } else {
+              // 2. If no cache, query if there are subtasks on the page immediately
+              chrome.tabs.sendMessage(tab.id, { action: 'checkSubtasks' }, (response) => {
+                if (chrome.runtime.lastError) {
+                  console.warn("checkSubtasks error (normal if content script not loaded yet):", chrome.runtime.lastError);
+                  updateSubtasksButton([]);
+                  return;
+                }
+                updateSubtasksButton(response?.subtasks);
+              });
             }
           });
         }
