@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- PM CONFIGURATION MANAGEMENT ---
-  let pmListArray = ["tony stark"]; // default lowercase fallback
+  let pmListArray = []; // empty by default (no filter)
 
   function formatPmListNames(str) {
     if (!str) return '';
@@ -116,8 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
       chrome.storage.local.get(['pmList'], (result) => {
         let listStr = result.pmList;
         if (listStr === undefined) {
-          // Default seed
-          listStr = "Tony Stark";
+          // Keep empty by default so it shows the placeholder
+          listStr = "";
           chrome.storage.local.set({ pmList: listStr });
         } else {
           listStr = formatPmListNames(listStr);
@@ -130,9 +130,9 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     } else {
       if (inputPmList) {
-        inputPmList.value = "Tony Stark";
+        inputPmList.value = "";
       }
-      pmListArray = ["tony stark"];
+      pmListArray = [];
     }
   }
 
@@ -542,11 +542,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return '';
               }
 
-              // 2. Filter by Assignee (must be a configured PM)
+              // 2. Filter by Assignee (must be a configured PM, if any PMs are configured)
+              let isPM = true;
               const assigneeName = json.fields?.assignee?.name || '';
               const assigneeDisplayName = json.fields?.assignee?.displayName || '';
-              const isPM = pmListArray.includes(assigneeName.toLowerCase().trim()) || 
-                           pmListArray.includes(assigneeDisplayName.toLowerCase().trim());
+              if (pmListArray.length > 0) {
+                isPM = pmListArray.includes(assigneeName.toLowerCase().trim()) || 
+                       pmListArray.includes(assigneeDisplayName.toLowerCase().trim());
+              }
               
               if (!isPM) {
                 console.log(`Skipping subtask ${key} because assignee "${assigneeDisplayName || assigneeName || 'Unassigned'}" is not in the PM list.`);
