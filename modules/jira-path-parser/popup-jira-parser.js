@@ -206,6 +206,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function hasAemUrls(text) {
+    if (!text) return false;
+    const matches = text.match(/https?:\/\/[^\s"'<>\(\)\[\]]+/g) || [];
+    return matches.some(url => 
+      url.includes('/content/') || 
+      url.includes('/ui#/aem/') || 
+      url.includes('/assets.html/') || 
+      url.includes('/editor.html/')
+    );
+  }
+
   function getCategory(jcrPath, url) {
     const pathLower = jcrPath.toLowerCase();
     const urlLower = url.toLowerCase();
@@ -279,8 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       }
-      // Detect child elements starting with >> or >>>
-      else if (cleanLine.match(/^>{2,}/) && currentGroup) {
+      // Detect child elements starting with >, >>, or >>>
+      else if (cleanLine.match(/^>+/) && currentGroup) {
         // Strip any sequence of leading '>' and spaces
         const elementName = cleanLine.replace(/^[>\s]+/, '');
         if (elementName) {
@@ -372,63 +383,114 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        chrome.tabs.sendMessage(tab.id, { action: 'getJiraIssueDetails' }, (response) => {
-          btnScanJira.disabled = false;
+        const baseUrl = new URL(tab.url).origin;
+        let responseData = null;
+        let subtasksList = [];
 
-          if (chrome.runtime.lastError) {
-            showJiraStatus("Error: Please reload the Jira tab and try again.", true);
-            if (activeTicketInfo) activeTicketInfo.textContent = "";
-            console.error(chrome.runtime.lastError);
-            return;
+        // 1. Try to fetch details via Jira REST API first
+        try {
+          const res = await fetch(`${baseUrl}/rest/api/2/issue/${issueKey}?fields=description,comment,subtasks`);
+          if (res.ok) {
+            const json = await res.json();
+            const desc = json.fields?.description || '';
+            const commentsList = (json.fields?.comment?.comments || []).map(c => c.body || '');
+            subtasksList = (json.fields?.subtasks || []).map(s => s.key).filter(Boolean);
+            
+            responseData = {
+              success: true,
+              issueKey: issueKey,
+              description: desc,
+              comments: commentsList,
+              subtasks: subtasksList
+            };
+            console.log("Successfully scanned active ticket via REST API.");
           }
+        } catch (apiErr) {
+          console.warn("Failed to scan active ticket via REST API, falling back to DOM scraping:", apiErr);
+        }
 
-          if (!response || !response.success) {
-            showJiraStatus(response?.error || "Failed to scrape ticket page.", true);
-            if (activeTicketInfo) activeTicketInfo.textContent = "";
-            return;
-          }
-
-          // Parse and process
-          const data = extractAEMData(response.fullText);
-          currentParsedData = data;
-
-          // Resolve issue key safely
-          let issueKey = response?.issueKey;
-          if (!issueKey || issueKey.toLowerCase().includes('scanning')) {
-            issueKey = getJiraKeyFromUrl(tab.url);
-          }
-
-          // Update active ticket info badge
-          if (activeTicketInfo && issueKey) {
-            activeTicketInfo.textContent = `Ticket: ${issueKey}`;
-            activeTicketInfo.style.display = 'inline-block';
-          }
-
-          // Update subtask button details
-          updateSubtasksButton(response.subtasks);
-
-          if (data.length === 0) {
-            showJiraStatus("No AEM paths detected.", true);
-            if (scanActionButtons) scanActionButtons.style.display = 'none';
-            return;
-          }
-
-          // Save to cache
-          saveScanCache(tab.url, issueKey, data, response.subtasks);
-
-          // Auto-copy to clipboard
-          const text = getFormattedText(data);
-          navigator.clipboard.writeText(text)
-            .then(() => {
-              showJiraStatus(`Scraped ticket ${response.issueKey || ""} & copied to clipboard!`);
-            })
-            .catch(err => {
-              showJiraStatus("Scraped successfully, but failed to auto-copy.", true);
-              console.error(err);
+        // 2. Fallback to DOM scraping if API failed
+        if (!responseData) {
+          await new Promise((resolve) => {
+            chrome.tabs.sendMessage(tab.id, { action: 'getJiraIssueDetails' }, (domResponse) => {
+              if (chrome.runtime.lastError || !domResponse || !domResponse.success) {
+                resolve();
+                return;
+              }
+              responseData = {
+                success: true,
+                issueKey: domResponse.issueKey || issueKey,
+                description: domResponse.description || '',
+                comments: domResponse.comments || [],
+                subtasks: domResponse.subtasks || []
+              };
+              resolve();
             });
+          });
+        }
 
-          if (scanActionButtons) scanActionButtons.style.display = 'flex';
-        });
+        btnScanJira.disabled = false;
+
+        if (!responseData) {
+          showJiraStatus("Error: Could not retrieve ticket details. Please reload the tab.", true);
+          if (activeTicketInfo) activeTicketInfo.textContent = "";
+          return;
+        }
+
+        // Resolve which text to parse: last comment with publish paths, or description
+        const desc = responseData.description || '';
+        const commentsList = responseData.comments || [];
+        let chosenText = '';
+        for (let idx = commentsList.length - 1; idx >= 0; idx--) {
+          const commentBody = commentsList[idx] || '';
+          if (hasAemUrls(commentBody)) {
+            chosenText = commentBody;
+            console.log(`Active Jira Ticket: Found publish paths in comment at index ${idx}. Only scanning this comment.`);
+            break;
+          }
+        }
+        if (!chosenText) {
+          chosenText = desc;
+          console.log(`Active Jira Ticket: No comments with publish paths found. Scanning the description.`);
+        }
+
+        // Parse and process
+        const data = extractAEMData(chosenText);
+        currentParsedData = data;
+
+        // Resolve issue key safely
+        const finalIssueKey = responseData.issueKey || issueKey;
+
+        // Update active ticket info badge
+        if (activeTicketInfo && finalIssueKey) {
+          activeTicketInfo.textContent = `Ticket: ${finalIssueKey}`;
+          activeTicketInfo.style.display = 'inline-block';
+        }
+
+        // Update subtask button details
+        updateSubtasksButton(responseData.subtasks);
+
+        if (data.length === 0) {
+          showJiraStatus("No AEM paths detected.", true);
+          if (scanActionButtons) scanActionButtons.style.display = 'none';
+          return;
+        }
+
+        // Save to cache
+        saveScanCache(tab.url, finalIssueKey, data, responseData.subtasks);
+
+        // Auto-copy to clipboard
+        const text = getFormattedText(data);
+        navigator.clipboard.writeText(text)
+          .then(() => {
+            showJiraStatus(`Scraped ticket ${finalIssueKey} & copied to clipboard!`);
+          })
+          .catch(err => {
+            showJiraStatus("Scraped successfully, but failed to auto-copy.", true);
+            console.error(err);
+          });
+
+        if (scanActionButtons) scanActionButtons.style.display = 'flex';
 
       } catch (err) {
         btnScanJira.disabled = false;
@@ -492,8 +554,21 @@ document.addEventListener('DOMContentLoaded', () => {
               }
 
               const desc = json.fields?.description || '';
-              const comments = (json.fields?.comment?.comments || []).map(c => c.body || '').join('\n\n');
-              return `${desc}\n\n=== COMMENTS ===\n\n${comments}`;
+              const commentsList = (json.fields?.comment?.comments || []).map(c => c.body || '');
+              let chosenText = '';
+              for (let idx = commentsList.length - 1; idx >= 0; idx--) {
+                const commentBody = commentsList[idx] || '';
+                if (hasAemUrls(commentBody)) {
+                  chosenText = commentBody;
+                  console.log(`Subtask ${key}: Found publish paths in comment at index ${idx}. Only scanning this comment.`);
+                  break;
+                }
+              }
+              if (!chosenText) {
+                chosenText = desc;
+                console.log(`Subtask ${key}: No comments with publish paths found. Scanning the description.`);
+              }
+              return chosenText;
             } catch (err) {
               console.warn(`Failed to fetch details for subtask ${key}:`, err);
               return '';

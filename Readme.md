@@ -48,11 +48,13 @@ Este módulo automatiza la **lectura y consolidación de paths de publicación**
 
 * **Flujo de Un Solo Clic (Scan & Auto-Copy)**:
   - Estando en cualquier ticket de tu servidor de Jira (ej. `jira.uhub.biz` o `*.atlassian.net`), haz clic en **"SCAN ACTIVE JIRA TICKET"**.
-  - El motor de scraping captura automáticamente la descripción del ticket y todo el historial de comentarios.
+  - **Priorización de Comentarios**: Emplea una heurística inteligente que busca en orden cronológico inverso (del más nuevo al más antiguo) el **último comentario que contenga paths de publicación**. Si lo encuentra, extrae la información únicamente de este comentario (evitando duplicados); si no, realiza un fallback y escanea la descripción del ticket.
   - **Copiado al Portapapeles Automático**: Los paths detectados se procesan, clasifican y se copian directamente en tu portapapeles de manera automática.
 * **Escaneo de Sub-tareas en Lote**:
   - Si el ticket tiene sub-tareas asociadas, el botón **"SCAN ALL SUB-TASKS"** se habilitará mostrando la cantidad de sub-tareas.
   - Al presionarlo, realiza peticiones asíncronas concurrentes a la API de Jira para compilar y unificar los paths de todas las sub-tareas en un solo paso.
+  - **Filtro de Estado y Asignado**: Solo se procesan sub-tareas cuyo estado sea `"In Progress"` o `"Open"`, y que estén asignadas a los PMs autorizados configurados, evitando capturar tickets ya cerrados o asignados a editores de contenido.
+  - **Configuración de PMs**: Incluye un panel colapsable (`🔧 Configure PMs`) que guarda de forma persistente la lista de PMs permitidos (ej. `"Tony Stark, Peter Parker"`). Los nombres ingresados se formatean y capitalizan automáticamente (iniciales en mayúscula) tanto al escribir como al perder el foco (blur).
 * **Agrupación y Jerarquía Inteligente**:
   - Los resultados se clasifican automáticamente y se organizan bajo la siguiente jerarquía:
     1. **Assets**: Recursos de DAM, imágenes, videos o documentos (`/content/dam/...` excluyendo fragmentos).
@@ -61,6 +63,7 @@ Este módulo automatiza la **lectura y consolidación de paths de publicación**
     4. **XF (Experience Fragments)**: Fragmentos de experiencia (`/content/experience-fragments/...`).
     5. **Pages**: Páginas de sitios AEM (`/content/...` que no pertenezcan a las categorías anteriores).
   - Deduplica nombres de recursos de manera insensible a mayúsculas/minúsculas (ej. evita repetir `3 column` y `3 Column`).
+  - **Soporte de Elementos Secundarios**: Detecta elementos secundarios anuidos bajo una ruta cuando están precedidos por `>, >>, o >>>` (removiendo automáticamente los prefijos y espacios).
 * **Formato de Exportación Compacto**:
   - El formato copiado al portapapeles (o descargado) agrupa los elementos bajo una única cabecera por categoría, optimizando el espacio en los comentarios de Jira:
     ```text

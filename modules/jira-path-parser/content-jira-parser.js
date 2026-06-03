@@ -53,27 +53,86 @@ function scrapeDescription() {
 }
 
 function scrapeComments() {
-  const comments = [];
+  const commentsList = [];
+  const ids = [];
 
-  // Jira Server / Data Center Comments
-  const serverComments = document.querySelectorAll('.comment-body, .action-body.floated, .action-body.flooded, .activity-comment .action-body');
-  serverComments.forEach(el => {
-    const txt = el.innerText.trim();
-    if (txt && !comments.includes(txt)) {
-      comments.push(txt);
+  // Query comment wrapper containers for Jira Server and Jira Cloud
+  const containers = document.querySelectorAll('.activity-comment, .issue-data-block, [data-test-id^="issue.activity.comment"]');
+  
+  containers.forEach(container => {
+    // Try to find numeric comment ID to determine chronological sort direction
+    const idAttr = container.getAttribute('id') || '';
+    let numericId = null;
+    const match = idAttr.match(/comment-(\d+)/);
+    if (match) {
+      numericId = parseInt(match[1], 10);
+    } else {
+      const anchor = container.querySelector('a[href*="focusedCommentId="], a[id^="comment-"]');
+      if (anchor) {
+        const href = anchor.getAttribute('href') || '';
+        const hrefMatch = href.match(/focusedCommentId=(\d+)/);
+        if (hrefMatch) {
+          numericId = parseInt(hrefMatch[1], 10);
+        } else {
+          const anchorId = anchor.getAttribute('id') || '';
+          const anchorIdMatch = anchorId.match(/comment-(\d+)/);
+          if (anchorIdMatch) {
+            numericId = parseInt(anchorIdMatch[1], 10);
+          }
+        }
+      }
+    }
+    
+    // Retrieve the text body of this comment
+    let bodyText = '';
+    const serverBody = container.querySelector('.comment-body, .action-body');
+    if (serverBody) {
+      bodyText = serverBody.innerText.trim();
+    } else {
+      const cloudBody = container.querySelector('[data-test-id="issue-history.renderer.comment-body"], [data-testid="comment-body"], .ak-renderer-document');
+      if (cloudBody) {
+        bodyText = cloudBody.innerText.trim();
+      } else {
+        bodyText = container.innerText.trim();
+      }
+    }
+
+    if (bodyText) {
+      commentsList.push({
+        text: bodyText,
+        id: numericId
+      });
+      if (numericId) {
+        ids.push(numericId);
+      }
     }
   });
 
-  // Jira Cloud Comments
-  const cloudComments = document.querySelectorAll('[data-test-id^="issue.activity.comment"] div, div[id^="comment-"]');
-  cloudComments.forEach(el => {
-    const txt = el.innerText.trim();
-    if (txt && !comments.includes(txt)) {
-      comments.push(txt);
+  // Determine if DOM order is descending (newest first)
+  let isDescending = false;
+  if (ids.length >= 2) {
+    if (ids[0] > ids[ids.length - 1]) {
+      isDescending = true;
+    }
+  }
+
+  let finalComments = commentsList.map(c => c.text);
+
+  // If descending, reverse to ascending (oldest first)
+  if (isDescending) {
+    console.log("[VML Paths Manager Assistant] Detected descending comment order in DOM. Reversing to ascending.");
+    finalComments.reverse();
+  }
+
+  // Deduplicate comments
+  const uniqueComments = [];
+  finalComments.forEach(txt => {
+    if (txt && !uniqueComments.includes(txt)) {
+      uniqueComments.push(txt);
     }
   });
 
-  return comments.join('\n\n');
+  return uniqueComments;
 }
 
 function detectLinkedIssues() {
@@ -187,7 +246,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     try {
       const issueKey = getJiraKey();
       const description = scrapeDescription();
-      const comments = scrapeComments();
+      const commentsArray = scrapeComments();
       const linkedIssues = detectLinkedIssues();
       const subtasks = detectSubtasks();
 
@@ -195,10 +254,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         success: true,
         issueKey: issueKey,
         description: description,
-        comments: comments,
+        comments: commentsArray,
         linkedIssues: linkedIssues,
         subtasks: subtasks,
-        fullText: `${description}\n\n=== COMMENTS ===\n\n${comments}`
+        fullText: `${description}\n\n=== COMMENTS ===\n\n${commentsArray.join('\n\n')}`
       });
     } catch (err) {
       console.error("[VML Paths Manager Assistant] Failed to scrape Jira ticket:", err);

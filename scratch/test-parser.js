@@ -67,10 +67,10 @@ function extractAEMData(jiraText) {
         }
       }
     }
-    // Detect child elements starting with >> or >>>
-    else if (cleanLine.match(/^>{2,3}/) && currentGroup) {
+    // Detect child elements starting with >, >>, or >>>
+    else if (cleanLine.match(/^>+/) && currentGroup) {
       // Strip '>' and leading spaces
-      const elementName = cleanLine.replace(/^>{2,3}\s*/, '');
+      const elementName = cleanLine.replace(/^[>\s]+/, '');
       if (elementName) {
         const childJcrPath = `${currentGroup.folderJcrPath}/${elementName}`;
         
