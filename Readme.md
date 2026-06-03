@@ -71,6 +71,10 @@ Este módulo automatiza la **lectura y consolidación de paths de publicación**
     >>> specs
     ```
   - **Botones Auxiliares**: Incluye botones para volver a copiar el formato consolidado (**COPY FORMATTED**) o descargar un archivo estructurado (**DOWNLOAD TXT**).
+* **Persistencia y Caché Inteligente (Local Storage)**:
+  - Guarda automáticamente los resultados de los escaneos (incluyendo la clave del ticket y la cantidad de sub-tareas) en la memoria local del navegador (`chrome.storage.local`) asociados a la URL del ticket de Jira.
+  - Al abrir el popup en un ticket previamente analizado, los resultados se restauran al instante sin necesidad de volver a consultar la página o llamar a la API de Jira.
+  - Cuenta con un sistema de auto-curación (*self-healing*) que deduce y repara automáticamente la clave del ticket a partir de la URL activa en caso de discrepancias.
 
 ---
 
@@ -88,6 +92,17 @@ Este módulo realiza la tarea inversa: ayuda al usuario a **armar los paths de p
   - Emplea un **Sling JCR API Query** que consulta la estructura del fragmento en segundo plano (`/content/dam/....3.json`) para capturar de forma invisible e infalible todos los assets asociados al fragmento, incluso si están en campos ocultos o pestañas inactivas.
 * **Formato Listo para Pegar**:
   - Copia la ruta de la carpeta contenedora seguida de `>>> [Título/Nombre del elemento]` para ser pegada en tus especificaciones de Jira.
+
+---
+
+## 🎨 Diseño Visual y Branding
+
+La extensión cuenta con una interfaz de usuario premium y futurista, diseñada con los siguientes elementos:
+- **Identidad de Marca VML**: Logotipo oficial de la empresa en alta definición, con fondo transparente integrado y un halo de brillo neón adaptativo en los bordes.
+- **Esquema de Colores "Sci-Fi / Dark Mode"**:
+  - Acentos y bordes en Cyan brillante (`#00e5ff`) con sombras de brillo difuminado.
+  - Botones de sub-tareas, descarga de archivos TXT y badges de tickets en un elegante degradado de oro y bronce (`#a8864a` a `#c9a96e`).
+- **Feedback Visual de Usuario**: Animaciones interactivas (por ejemplo, confirmación de estado visual a color verde con el texto `"COPIED! ✔️"` durante 1.5 segundos al presionar el botón de copia).
 
 ---
 
