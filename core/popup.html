@@ -103,6 +103,18 @@
           <button id="btnScanSubtasks" class="btn-search" style="width: 100%; background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: #fff; border-color: var(--gold-light);" disabled>SCAN ALL SUB-TASKS (0)</button>
         </div>
 
+        <!-- Settings Panel Toggle -->
+        <div style="text-align: right; margin-bottom: 8px;">
+          <button id="btnToggleSettings" style="background: none; border: none; color: var(--text-secondary); font-size: 10px; cursor: pointer; text-decoration: underline; padding: 0; outline: none;">🔧 Configure PMs</button>
+        </div>
+
+        <!-- Settings Panel (Collapsible) -->
+        <div id="pmSettingsPanel" style="display: none; border: 1px solid var(--border-accent); border-radius: var(--radius-sm); padding: 10px; margin-bottom: 12px; background: rgba(255, 255, 255, 0.01);">
+          <label class="field-label" style="font-size: 9px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;">PM Name to Filter:</label>
+          <input type="text" id="inputPmList" style="width: 100%; border: 1px solid var(--border-accent); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); padding: 6px; font-size: 10px; outline: none; margin-bottom: 8px;" placeholder="e.g. Tony Stark">
+          <button id="btnSaveSettings" class="btn-search" style="width: 100%; font-size: 9px; padding: 4px 10px;">Save Configuration</button>
+        </div>
+
         <p id="jiraStatus" class="autofill-status" style="display: none; margin-bottom: 12px;"></p>
 
         <!-- Scan Action Buttons (shown after successful scan) -->

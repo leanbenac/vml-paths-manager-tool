@@ -12,6 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnScanSubtasks = document.getElementById('btnScanSubtasks');
   const subtasksScanContainer = document.getElementById('subtasksScanContainer');
   const btnDownloadTxt = document.getElementById('btnDownloadTxt');
+  const btnToggleSettings = document.getElementById('btnToggleSettings');
+  const pmSettingsPanel = document.getElementById('pmSettingsPanel');
+  const inputPmList = document.getElementById('inputPmList');
+  const btnSaveSettings = document.getElementById('btnSaveSettings');
 
   if (!btnScanJira) return;
 
@@ -86,6 +90,90 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn("Error parsing URL to get Jira key:", e);
     }
     return '';
+  }
+
+  // --- PM CONFIGURATION MANAGEMENT ---
+  let pmListArray = ["tony stark"]; // default lowercase fallback
+
+  function formatPmListNames(str) {
+    if (!str) return '';
+    return str.split(',')
+      .map(name => {
+        return name.trim()
+          .split(/\s+/)
+          .map(word => {
+            if (!word) return '';
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+          })
+          .join(' ');
+      })
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  function loadPmSettings() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['pmList'], (result) => {
+        let listStr = result.pmList;
+        if (listStr === undefined) {
+          // Default seed
+          listStr = "Tony Stark";
+          chrome.storage.local.set({ pmList: listStr });
+        } else {
+          listStr = formatPmListNames(listStr);
+        }
+        if (inputPmList) {
+          inputPmList.value = listStr;
+        }
+        // Update local array (lowercase, trimmed)
+        pmListArray = listStr.split(',').map(name => name.trim().toLowerCase()).filter(Boolean);
+      });
+    } else {
+      if (inputPmList) {
+        inputPmList.value = "Tony Stark";
+      }
+      pmListArray = ["tony stark"];
+    }
+  }
+
+  loadPmSettings();
+
+  if (btnToggleSettings && pmSettingsPanel) {
+    btnToggleSettings.addEventListener('click', () => {
+      const isHidden = pmSettingsPanel.style.display === 'none';
+      pmSettingsPanel.style.display = isHidden ? 'block' : 'none';
+    });
+  }
+
+  if (inputPmList) {
+    inputPmList.addEventListener('blur', () => {
+      inputPmList.value = formatPmListNames(inputPmList.value);
+    });
+  }
+
+  if (btnSaveSettings && inputPmList) {
+    btnSaveSettings.addEventListener('click', () => {
+      const rawStr = inputPmList.value || '';
+      const listStr = formatPmListNames(rawStr);
+      if (inputPmList) {
+        inputPmList.value = listStr;
+      }
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ pmList: listStr }, () => {
+          showJiraStatus("Configuration saved successfully!");
+          pmListArray = listStr.split(',').map(name => name.trim().toLowerCase()).filter(Boolean);
+          if (pmSettingsPanel) {
+            pmSettingsPanel.style.display = 'none';
+          }
+        });
+      } else {
+        pmListArray = listStr.split(',').map(name => name.trim().toLowerCase()).filter(Boolean);
+        showJiraStatus("Configuration updated!");
+        if (pmSettingsPanel) {
+          pmSettingsPanel.style.display = 'none';
+        }
+      }
+    });
   }
 
   // Common copy helper
@@ -381,9 +469,28 @@ document.addEventListener('DOMContentLoaded', () => {
           const batchKeys = keys.slice(i, i + batchSize);
           const promises = batchKeys.map(async (key) => {
             try {
-              const res = await fetch(`${baseUrl}/rest/api/2/issue/${key}?fields=description,comment`);
+              const res = await fetch(`${baseUrl}/rest/api/2/issue/${key}?fields=description,comment,status,assignee`);
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
               const json = await res.json();
+              
+              // 1. Filter by Status (must be "In Progress" or "Open")
+              const statusName = (json.fields?.status?.name || '').toLowerCase().trim();
+              if (statusName !== 'in progress' && statusName !== 'open') {
+                console.log(`Skipping subtask ${key} because status is "${statusName}" (not "In Progress" or "Open")`);
+                return '';
+              }
+
+              // 2. Filter by Assignee (must be a configured PM)
+              const assigneeName = json.fields?.assignee?.name || '';
+              const assigneeDisplayName = json.fields?.assignee?.displayName || '';
+              const isPM = pmListArray.includes(assigneeName.toLowerCase().trim()) || 
+                           pmListArray.includes(assigneeDisplayName.toLowerCase().trim());
+              
+              if (!isPM) {
+                console.log(`Skipping subtask ${key} because assignee "${assigneeDisplayName || assigneeName || 'Unassigned'}" is not in the PM list.`);
+                return '';
+              }
+
               const desc = json.fields?.description || '';
               const comments = (json.fields?.comment?.comments || []).map(c => c.body || '').join('\n\n');
               return `${desc}\n\n=== COMMENTS ===\n\n${comments}`;
@@ -400,14 +507,15 @@ document.addEventListener('DOMContentLoaded', () => {
           showJiraStatus(`Scanning subtasks (${completedCount}/${keys.length})...`);
         }
 
-        const consolidatedText = fetchedTexts.join('\n\n=== NEXT SUBTASK ===\n\n');
+        const validResults = fetchedTexts.filter(Boolean);
+        const consolidatedText = validResults.join('\n\n=== NEXT SUBTASK ===\n\n');
 
         // Parse and process
         const data = extractAEMData(consolidatedText);
         currentParsedData = data;
 
         if (data.length === 0) {
-          showJiraStatus("No AEM paths detected.", true);
+          showJiraStatus("No AEM paths detected in 'In Progress' or 'Open' PM subtasks.", true);
           if (scanActionButtons) scanActionButtons.style.display = 'none';
           return;
         }
@@ -437,7 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = getFormattedText(data);
         navigator.clipboard.writeText(text)
           .then(() => {
-            showJiraStatus(`Scraped ${keys.length} subtasks & copied to clipboard!`);
+            showJiraStatus(`Scraped ${validResults.length} active PM subtasks & copied to clipboard!`);
           })
           .catch(err => {
             showJiraStatus("Scraped subtasks successfully, but failed to auto-copy.", true);
