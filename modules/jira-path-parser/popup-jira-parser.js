@@ -68,6 +68,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getJiraKeyFromUrl(url) {
+    if (!url) return '';
+    try {
+      const urlObj = new URL(url);
+      const browseMatch = urlObj.pathname.match(/\/browse\/([A-Z0-9]+-[0-9]+)/i);
+      if (browseMatch) return browseMatch[1].toUpperCase();
+
+      const selectedIssue = urlObj.searchParams.get('selectedIssue');
+      if (selectedIssue && selectedIssue.match(/^[A-Z0-9]+-[0-9]+$/i)) {
+        return selectedIssue.toUpperCase();
+      }
+
+      const genericMatch = url.match(/([A-Z0-9]+-[0-9]+)/i);
+      if (genericMatch) return genericMatch[1].toUpperCase();
+    } catch (e) {
+      console.warn("Error parsing URL to get Jira key:", e);
+    }
+    return '';
+  }
+
   // Common copy helper
   function copyText(text, successMsg = "Copied!") {
     navigator.clipboard.writeText(text)
@@ -277,9 +297,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const data = extractAEMData(response.fullText);
           currentParsedData = data;
 
+          // Resolve issue key safely
+          let issueKey = response?.issueKey;
+          if (!issueKey || issueKey.toLowerCase().includes('scanning')) {
+            issueKey = getJiraKeyFromUrl(tab.url);
+          }
+
           // Update active ticket info badge
-          if (activeTicketInfo && response.issueKey) {
-            activeTicketInfo.textContent = `Ticket: ${response.issueKey}`;
+          if (activeTicketInfo && issueKey) {
+            activeTicketInfo.textContent = `Ticket: ${issueKey}`;
             activeTicketInfo.style.display = 'inline-block';
           }
 
@@ -293,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Save to cache
-          saveScanCache(tab.url, response.issueKey, data, response.subtasks);
+          saveScanCache(tab.url, issueKey, data, response.subtasks);
 
           // Auto-copy to clipboard
           const text = getFormattedText(data);
@@ -379,10 +405,26 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
+        // Resolve issue key safely
+        let issueKey = '';
+        if (activeTicketInfo) {
+          const badgeText = activeTicketInfo.textContent || '';
+          if (badgeText.startsWith('Ticket:') && !badgeText.toLowerCase().includes('scanning')) {
+            issueKey = badgeText.replace('Ticket: ', '').trim();
+          }
+        }
+        if (!issueKey) {
+          issueKey = getJiraKeyFromUrl(tab.url);
+        }
+
+        // Update badge if resolved now
+        if (activeTicketInfo && issueKey) {
+          activeTicketInfo.textContent = `Ticket: ${issueKey}`;
+          activeTicketInfo.style.display = 'inline-block';
+        }
+
         // Save to cache
-        const ticketInfo = activeTicketInfo.textContent || '';
-        const cleanKey = ticketInfo.replace('Ticket: ', '').trim();
-        saveScanCache(tab.url, cleanKey, data, keys);
+        saveScanCache(tab.url, issueKey, data, keys);
 
         // Auto-copy to clipboard
         const text = getFormattedText(data);
@@ -451,7 +493,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = URL.createObjectURL(blob);
       
       const ticketInfo = activeTicketInfo.textContent || 'subtasks';
-      const cleanKey = ticketInfo.replace('Ticket: ', '').trim();
+      let cleanKey = ticketInfo.replace('Ticket: ', '').trim();
+      if (cleanKey.toLowerCase().includes('scanning')) {
+        cleanKey = 'export';
+      }
       const filename = `publish-paths-${cleanKey || 'export'}.txt`;
 
       const a = document.createElement('a');
@@ -480,11 +525,19 @@ document.addEventListener('DOMContentLoaded', () => {
           // 1. Try to load cached data for this page first
           loadScanCache(tab.url, (cached) => {
             if (cached) {
+              let issueKey = cached.issueKey;
+              // Self-healing check to correct any existing corrupt cache
+              if (!issueKey || issueKey.toLowerCase().includes('scanning')) {
+                issueKey = getJiraKeyFromUrl(tab.url);
+                // Save healed cache back to storage
+                saveScanCache(tab.url, issueKey, cached.data, cached.subtasks);
+              }
+
               currentParsedData = cached.data;
               
               // Restore active ticket info badge
-              if (activeTicketInfo && cached.issueKey) {
-                activeTicketInfo.textContent = `Ticket: ${cached.issueKey}`;
+              if (activeTicketInfo && issueKey) {
+                activeTicketInfo.textContent = `Ticket: ${issueKey}`;
                 activeTicketInfo.style.display = 'inline-block';
               }
               
@@ -496,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 scanActionButtons.style.display = 'flex';
               }
               
-              showJiraStatus(`Restored cached results for ticket ${cached.issueKey || ""}.`);
+              showJiraStatus(`Restored cached results for ticket ${issueKey || ""}.`);
             } else {
               // 2. If no cache, query if there are subtasks on the page immediately
               chrome.tabs.sendMessage(tab.id, { action: 'checkSubtasks' }, (response) => {
