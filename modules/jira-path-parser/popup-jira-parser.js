@@ -519,8 +519,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const isJira = tab.url.includes('jira.uhub.biz') || tab.url.includes('atlassian.net') || tab.url.includes('/browse/');
         if (isJira) {
           btnScanJira.style.background = 'linear-gradient(135deg, var(--accent), var(--accent-light))';
-          btnScanJira.style.color = '#fff';
+          btnScanJira.style.color = '#051515';
           btnScanJira.style.borderColor = 'var(--accent-light)';
+          btnScanJira.style.boxShadow = '0 0 15px var(--accent-glow)';
 
           // 1. Try to load cached data for this page first
           loadScanCache(tab.url, (cached) => {
