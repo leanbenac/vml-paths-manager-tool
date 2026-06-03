@@ -666,3 +666,21 @@ textarea:focus {
   border: 1px solid rgba(201, 169, 110, 0.3) !important;
   box-shadow: 0 0 8px rgba(201, 169, 110, 0.15) !important;
 }
+
+/* ============================================
+   PATH VALIDATOR STYLING OVERRIDES
+   ============================================ */
+.status-valid {
+  background: rgba(74, 222, 128, 0.12) !important;
+  color: var(--accent-green) !important;
+  border: 1px solid rgba(74, 222, 128, 0.25) !important;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.05) !important;
+}
+
+.status-invalid {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.05) !important;
+}
+

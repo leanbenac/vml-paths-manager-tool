@@ -26,7 +26,8 @@
         "<all_urls>"
       ],
       "js": [
-        "modules/publish-path-generator/content-publish-path-generator.js"
+        "modules/publish-path-generator/content-publish-path-generator.js",
+        "modules/path-validator/content-path-validator.js"
       ],
       "css": [
         "core/content.css"

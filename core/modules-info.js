@@ -21,5 +21,14 @@ const MODULES_DOCUMENTATION = {
       "Scans subtasks in batch mode when available.",
       "Constructs full JCR paths and generates direct editor links for nested components."
     ]
+  },
+  pathValidator: {
+    title: "Path Validator",
+    description: "Paste publish paths or load a TXT file to verify if they exist on the active AEM or VDM environment.",
+    validations: [
+      "Requires being on an active AEM Cloud or VDM page.",
+      "Parses base paths and child elements (>>>) from raw text or loaded TXT files.",
+      "Performs asynchronous JCR query requests to check existence and returns live validation status."
+    ]
   }
 };

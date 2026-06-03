@@ -125,6 +125,59 @@
       </div>
     </div>
 
+    <!-- Module: Path Validator -->
+    <div class="tool-section" style="margin-top: 16px;">
+      <div class="tool-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <div class="tool-header-left" style="display: flex; gap: 10px; align-items: center;">
+          <div class="module-icon module-icon--validator" style="background: rgba(0, 229, 255, 0.1); color: var(--accent-light); padding: 8px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px;">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <div class="module-header-info">
+            <div class="module-title-row" style="display: flex; align-items: center; gap: 6px;">
+              <h3 class="module-title" style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text);">Path Validator</h3>
+              <button class="info-btn" data-module="pathValidator" type="button" aria-label="Show info" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); border-radius: 50%; color: var(--text-muted); cursor: pointer; font-size: 10px; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; padding: 0;">i</button>
+            </div>
+            <p class="module-desc" style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-muted);">Verify if publish paths exist on the active AEM/VDM environment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tool-body">
+        <div class="field-group" style="margin-bottom: 10px;">
+          <textarea id="validatorInput" placeholder="Paste publish paths here (one per line) or load a TXT file..." rows="4" style="width: 100%; border: 1px solid var(--border-accent); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); padding: 8px; font-size: 11px; line-height: 1.4; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; resize: none; min-height: 80px; margin-bottom: 8px;"></textarea>
+          
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <input type="file" id="validatorFileInput" accept=".txt" style="display: none;">
+            <button id="btnLoadValidatorTxt" class="btn-search" style="flex: 1; font-size: 9px; padding: 6px 10px;">LOAD TXT FILE</button>
+            <button id="btnClearValidator" class="btn-search" style="flex: 1; font-size: 9px; padding: 6px 10px; border-color: rgba(255, 107, 107, 0.3); color: #ff6b6b; background: rgba(255, 107, 107, 0.03);">CLEAR</button>
+          </div>
+        </div>
+
+        <div id="validatorEnvContainer" style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--text-secondary);">
+          <span>Active Host:</span>
+          <span id="validatorEnvStatus" class="asset-status-badge status-scanning" style="padding: 2px 6px;">Checking active page...</span>
+        </div>
+
+        <button id="btnValidatePaths" class="btn-search" style="width: 100%; margin-bottom: 12px;" disabled>VALIDATE PATHS</button>
+        
+        <p id="validatorStatus" class="autofill-status" style="display: none; margin-bottom: 12px;"></p>
+
+        <!-- Validation Results Section -->
+        <div id="validatorResultsContainer" style="display: none; border-top: 1px solid var(--border); padding-top: 12px;">
+          <label class="field-label" style="margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            <span>Validation Results</span>
+            <span id="validatorResultsSummary" style="font-size: 10px; font-weight: normal; color: var(--text-secondary); text-transform: none;">0/0 Validated</span>
+          </label>
+          <div id="validatorResultsList" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px; margin-bottom: 6px;">
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Footer: VML Branding -->
@@ -159,6 +212,7 @@
 
   <script src="../modules/publish-path-generator/popup-publish-path-generator.js"></script>
   <script src="../modules/jira-path-parser/popup-jira-parser.js"></script>
+  <script src="../modules/path-validator/popup-path-validator.js"></script>
 </body>
 
 </html>

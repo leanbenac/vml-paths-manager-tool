@@ -31,8 +31,8 @@ vml-paths-manager-tool/
 │   ├── popup.html                 # Estructura principal del popup
 │   └── popup-ui.js                # Control de tooltips dinámicos de ayuda
 ├── modules/
-│   ├── publish-path-generator/    # Módulo: Generador de Paths desde AEM (Oculto temporalmente)
-│   └── jira-path-parser/          # Módulo: Extractor de Paths desde Jira (Activo)
+│   ├── jira-path-parser/          # Módulo: Extractor de Paths desde Jira (Activo)
+│   └── path-validator/            # Módulo: Validador de Publish Paths (Activo)
 ├── scratch/                       # Scripts de prueba del parseador
 └── Readme.md                      # Documentación del proyecto
 ```
@@ -41,7 +41,7 @@ vml-paths-manager-tool/
 
 ## ⚙️ Descripción de los Módulos
 
-La extensión cuenta con dos módulos principales diseñados para tareas opuestas pero complementarias:
+La extensión cuenta con dos módulos principales diseñados para tareas complementarias:
 
 ### 1. Jira AEM Path Parser 🎫 (Módulo Activo)
 Este módulo automatiza la **lectura y consolidación de paths de publicación** directamente desde los comentarios y descripciones de tickets de Jira, evitando el trabajo de buscar y verificar manualmente cada link.
@@ -79,22 +79,22 @@ Este módulo automatiza la **lectura y consolidación de paths de publicación**
   - Al abrir el popup en un ticket previamente analizado, los resultados se restauran al instante sin necesidad de volver a consultar la página o llamar a la API de Jira.
   - Cuenta con un sistema de auto-curación (*self-healing*) que deduce y repara automáticamente la clave del ticket a partir de la URL activa en caso de discrepancias.
 
----
+### 2. Path Validator 🔍 (Módulo Activo)
+Este módulo permite **validar y verificar en tiempo real si uno o más publish paths existen** en el entorno activo en el que el usuario está posicionado.
 
-### 2. Publish Path Finder & Generator 🚀 (Módulo Oculto)
-Este módulo realiza la tarea inversa: ayuda al usuario a **armar los paths de publicación** correctos a partir de la pestaña activa de AEM para luego poder crear tickets o comentarios en Jira.
-
-* **Conversión de URLs del Editor a Consola**:
-  - Detecta si estás posicionado sobre un editor de AEM y convierte automáticamente la URL activa en la ruta de su consola contenedora correspondiente:
-    - **Pages**: De `/editor.html/content/.../pagina.html` a la carpeta contenedora en Sites (`/sites.html/content/...`).
-    - **Content Fragments (CF)**: De `/editor.html/content/dam/...` a su carpeta contenedora en Assets DAM (`/assets.html/content/dam/...`).
-    - **Experience Fragments (XF)**: De `/editor.html/content/experience-fragments/...` a su consola contenedora, removiendo la variación (ej. `/master.html`).
-    - **VDM Author**: Convierte la edición de VDM a la consola de exploración (`/aem/vdm.html/browse/...`).
-* **Detección Asíncrona de Assets**:
-  - Cuenta con un **DOM Scanner** que busca paths DAM con extensiones en los campos de la página.
-  - Emplea un **Sling JCR API Query** que consulta la estructura del fragmento en segundo plano (`/content/dam/....3.json`) para capturar de forma invisible e infalible todos los assets asociados al fragmento, incluso si están en campos ocultos o pestañas inactivas.
-* **Formato Listo para Pegar**:
-  - Copia la ruta de la carpeta contenedora seguida de `>>> [Título/Nombre del elemento]` para ser pegada en tus especificaciones de Jira.
+* **Entrada de Datos Flexible**:
+  - **Pegar Texto**: Permite copiar y pegar directamente uno o más paths (incluso con el formato jerárquico del parseador de Jira con prefijos `>>>`).
+  - **Cargar Archivo TXT**: Permite cargar un archivo de texto `.txt` directamente para poblar el validador de forma automática.
+* **Detección Automática de Entorno**:
+  - Identifica el host de AEM Cloud o VDM de la pestaña activa de Chrome y habilita el botón de validación solo cuando el usuario está en un entorno válido y con sesión iniciada.
+  - **Reescritura de Dominio Inteligente**: Si los paths pegados o cargados tienen dominios diferentes (por ejemplo, copiados de Jira que apuntaban a producción), el validador reescribe automáticamente los requests hacia el dominio activo de la pestaña del usuario, evitando errores y validando contra el ambiente actual de trabajo.
+* **Validación Asíncrona en Lotes**:
+  - Envía la lista de rutas al script de contenido de la página activa para ejecutar las consultas bajo el origen del usuario (heredando sus credenciales de login) de forma segura y veloz.
+  - Ejecuta las validaciones de forma asíncrona en lotes de 4 para evitar cuellos de botella de red o rate limits del servidor AEM.
+* **Resumen y Navegación Rápida**:
+  - Muestra badges de estado en base a la respuesta del servidor: `VALID` (200-299), `INVALID` (404), `RESTRICTED` (403) o `ERROR`.
+  - Clasifica las rutas con badges según su categoría (Assets, VDM, CF, XF, Pages).
+  - Incluye un botón **Open** rápido al lado de cada path verificado para abrir directamente su consola o editor JCR correspondiente en una nueva pestaña.
 
 ---
 
