@@ -259,7 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         btnScanJira.disabled = true;
         clearJiraStatus();
-        if (activeTicketInfo) activeTicketInfo.textContent = "Scanning active tab...";
 
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab || !tab.id) {
@@ -267,6 +266,14 @@ document.addEventListener('DOMContentLoaded', () => {
           btnScanJira.disabled = false;
           return;
         }
+
+        // Keep key badge showing the issue key immediately from the URL
+        const urlKey = getJiraKeyFromUrl(tab.url);
+        if (activeTicketInfo && urlKey) {
+          activeTicketInfo.textContent = `Ticket: ${urlKey}`;
+          activeTicketInfo.style.display = 'inline-block';
+        }
+        showJiraStatus("Scanning active tab...");
 
         // Verify if it's a Jira page
         const isJira = tab.url.includes('jira.uhub.biz') || tab.url.includes('atlassian.net') || tab.url.includes('/browse/');
@@ -522,6 +529,13 @@ document.addEventListener('DOMContentLoaded', () => {
           btnScanJira.style.color = '#051515';
           btnScanJira.style.borderColor = 'var(--accent-light)';
           btnScanJira.style.boxShadow = '0 0 15px var(--accent-glow)';
+
+          // Pre-resolve and display the ticket key immediately from the URL
+          const urlKey = getJiraKeyFromUrl(tab.url);
+          if (activeTicketInfo && urlKey) {
+            activeTicketInfo.textContent = `Ticket: ${urlKey}`;
+            activeTicketInfo.style.display = 'inline-block';
+          }
 
           // 1. Try to load cached data for this page first
           loadScanCache(tab.url, (cached) => {

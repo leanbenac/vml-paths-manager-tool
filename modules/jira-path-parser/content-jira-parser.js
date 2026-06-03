@@ -116,15 +116,59 @@ function detectLinkedIssues() {
 }
 
 function detectSubtasks() {
-  const keys = [];
+  const keys = new Set();
+  
+  // 1. Classic view: issue table rows
   const subtaskRows = document.querySelectorAll('#issuetable tr.issuerow[data-issuekey]');
   subtaskRows.forEach(row => {
     const key = row.getAttribute('data-issuekey');
-    if (key && !keys.includes(key)) {
-      keys.push(key);
+    if (key) keys.add(key.trim());
+  });
+
+  // 2. Element attributes (anywhere in child issues panel or subtasks container)
+  const subtaskContainers = document.querySelectorAll('#subtasks, #child-issues-panel, .subtask-list, [data-test-id*="child-issues-panel"], #parent_issue_summary, #subtasks_set');
+  subtaskContainers.forEach(container => {
+    // Find all links with issue keys inside the subtasks container
+    const links = container.querySelectorAll('a.issue-link, a[href*="/browse/"]');
+    links.forEach(link => {
+      // Extract key from data attribute
+      if (link.dataset.issueKey) {
+        keys.add(link.dataset.issueKey.trim());
+      } else if (link.getAttribute('data-issue-key')) {
+        keys.add(link.getAttribute('data-issue-key').trim());
+      } else {
+        // Extract key from href
+        const href = link.getAttribute('href') || '';
+        const match = href.match(/\/browse\/([A-Z0-9]+-[0-9]+)/i);
+        if (match) {
+          keys.add(match[1].toUpperCase());
+        }
+      }
+    });
+    
+    // Also check elements with data-issuekey directly inside the container
+    container.querySelectorAll('[data-issuekey], [data-issue-key]').forEach(el => {
+      const key = el.getAttribute('data-issuekey') || el.getAttribute('data-issue-key');
+      if (key) keys.add(key.trim());
+    });
+  });
+
+  // 3. Fallback: scan for any elements in the main subtasks list (e.g. Jira Server New Issue View)
+  const subtaskLinks = document.querySelectorAll('.subtask-list a.issue-link, .subtasks-list-container a.issue-link, #subtasks-list a.issue-link');
+  subtaskLinks.forEach(link => {
+    const match = link.textContent.match(/([A-Z0-9]+-[0-9]+)/);
+    if (match) {
+      keys.add(match[1]);
     }
   });
-  return keys;
+
+  // Remove the current issue key just in case it got matched
+  const currentKey = getJiraKey();
+  if (currentKey) {
+    keys.delete(currentKey);
+  }
+
+  return Array.from(keys);
 }
 
 // Message Listener
