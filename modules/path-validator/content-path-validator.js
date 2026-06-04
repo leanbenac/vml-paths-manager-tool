@@ -15,32 +15,31 @@ async function getParentData(parentPath) {
     fetchPath = fetchPath.substring(0, fetchPath.length - 5);
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const promise = (async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-  try {
-    const res = await fetch(fetchPath + '.2.json', {
-      method: 'GET',
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+    try {
+      const res = await fetch(fetchPath + '.1.json', {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const data = await res.json();
-      const result = { exists: true, data: data, status: res.status };
-      parentCache.set(parentPath, result);
-      return result;
-    } else {
-      const result = { exists: false, status: res.status };
-      parentCache.set(parentPath, result);
-      return result;
+      if (res.ok) {
+        const data = await res.json();
+        return { exists: true, data: data, status: res.status };
+      } else {
+        return { exists: false, status: res.status };
+      }
+    } catch (err) {
+      clearTimeout(timeoutId);
+      return { exists: false, error: err.message };
     }
-  } catch (err) {
-    clearTimeout(timeoutId);
-    const result = { exists: false, error: err.message };
-    parentCache.set(parentPath, result);
-    return result;
-  }
+  })();
+
+  parentCache.set(parentPath, promise);
+  return promise;
 }
 
 async function checkChildPath(pathObj) {
@@ -98,12 +97,27 @@ async function checkChildPath(pathObj) {
                       (cleanKeyMatch === cleanSearchMatch) ||
                       (cleanKeyMatch.replace(/^-+|-+$/g, '') === cleanSearchMatch.replace(/^-+|-+$/g, ''));
 
-        // 3. Substring/fuzzy match (Crucial for JCR keys that are parts of the option title, e.g. "darkhorsepremium" in "2026 Mustang® Dark Horse® Premium")
+        // 3. Substring/fuzzy match (Crucial for JCR keys that are parts of the option title)
         if (!isMatch) {
           const keyAlpha = keyLower.replace(/[^a-z0-9]+/g, '');
           const searchAlpha = searchName.replace(/[^a-z0-9]+/g, '');
           if (keyAlpha.length >= 4) {
-            isMatch = searchAlpha.includes(keyAlpha) || keyAlpha.includes(searchAlpha);
+            const isSub = searchAlpha.includes(keyAlpha) || keyAlpha.includes(searchAlpha);
+            if (isSub) {
+              // Prevent singular/plural cross-matching if the ONLY difference is a trailing 's'
+              const diffLength = Math.abs(keyAlpha.length - searchAlpha.length);
+              if (diffLength === 1) {
+                const longer = keyAlpha.length > searchAlpha.length ? keyAlpha : searchAlpha;
+                const shorter = keyAlpha.length > searchAlpha.length ? searchAlpha : keyAlpha;
+                if (longer.endsWith('s') && longer.substring(0, longer.length - 1) === shorter) {
+                  isMatch = false;
+                } else {
+                  isMatch = true;
+                }
+              } else {
+                isMatch = true;
+              }
+            }
           }
         }
 
@@ -119,9 +133,17 @@ async function checkChildPath(pathObj) {
         }
       }
     }
+    
+    // If parent folder was successfully queried but child was not found, it is invalid
+    return {
+      ...pathObj,
+      status: 'INVALID',
+      httpStatus: parentResult.status || 404,
+      errorMsg: `Element "${elementName}" not found in parent folder metadata`
+    };
   }
 
-  // FALLBACK: If parent folder is not queryable OR the child wasn't found in the parent metadata list,
+  // FALLBACK: If parent folder is not queryable (exists is false),
   // try direct validation of guessed child keys as a last resort.
   const guessedKeys = new Set();
   // 1. Direct name
@@ -165,26 +187,15 @@ async function checkChildPath(pathObj) {
     console.warn("Failed to deduce parent-filtered keys:", err);
   }
 
-  // Add singular/plural variations to expand coverage (e.g. "model-billboard" vs "model-billboards")
-  const expandedKeys = new Set(guessedKeys);
   for (const key of guessedKeys) {
-    if (!key) continue;
-    if (key.endsWith('s')) {
-      const singular = key.substring(0, key.length - 1);
-      if (singular) expandedKeys.add(singular);
-    } else {
-      expandedKeys.add(key + 's');
-    }
-  }
-
-  for (const key of expandedKeys) {
     if (!key) continue;
     const childJcrPath = `${parentPath}/${key}`;
     
     const checkResult = await checkPath({
       jcrPath: childJcrPath,
       isChild: false,
-      type: pathObj.type
+      type: pathObj.type,
+      expectFolder: false
     });
 
     if (checkResult.status === 'VALID' || checkResult.status === 'RESTRICTED') {
@@ -197,12 +208,40 @@ async function checkChildPath(pathObj) {
     }
   }
 
+  // Fallback: Check one level up in the directory tree
+  // This helps when scrapers mistakenly put a CF inside a subfolder (like /highlights) 
+  // instead of the year folder (like /2026)
+  if (!pathObj._hasCheckedUpOneLevel) {
+    const pathSegments = parentPath.split('/').filter(Boolean);
+    if (pathSegments.length > 2) {
+      pathSegments.pop(); // Go up one level
+      const upOneLevelPath = '/' + pathSegments.join('/');
+      
+      const upOneLevelResult = await checkChildPath({
+        ...pathObj,
+        parentPath: upOneLevelPath,
+        _hasCheckedUpOneLevel: true // prevent infinite loops
+      });
+      
+      if (upOneLevelResult.status === 'VALID' || upOneLevelResult.status === 'RESTRICTED') {
+        return upOneLevelResult;
+      }
+    }
+  }
+
   return {
     ...pathObj,
     status: 'INVALID',
     httpStatus: parentResult.status || 404,
-    errorMsg: `Element "${elementName}" not found or verified in parent folder`
+    errorMsg: `Element "${elementName}" not found in folder or parent folder`
   };
+}
+
+function hasFileExtension(path) {
+  const match = path.match(/\.([a-zA-Z0-9]+)$/);
+  if (!match) return false;
+  const ext = match[1].toLowerCase();
+  return ext !== 'html' && ext !== 'json' && ext !== 'xml';
 }
 
 async function checkPath(pathObj) {
@@ -237,8 +276,57 @@ async function checkPath(pathObj) {
     fetchPath = fetchPath.substring(0, fetchPath.length - 5);
   }
 
+  // If the path has a file extension (e.g., .png, .tif), check it directly first
+  // to avoid false positives from Sling suffix resolution on parent folders/assets
+  if (hasFileExtension(fetchPath)) {
+    try {
+      const directController = new AbortController();
+      const directTimeoutId = setTimeout(() => directController.abort(), 5000);
+      const directRes = await fetch(fetchPath, {
+        method: 'HEAD',
+        signal: directController.signal
+      });
+      clearTimeout(directTimeoutId);
+
+      if (directRes.ok) {
+        return {
+          ...pathObj,
+          status: 'VALID',
+          httpStatus: directRes.status
+        };
+      } else if (directRes.status === 404) {
+        return {
+          ...pathObj,
+          status: 'INVALID',
+          httpStatus: directRes.status
+        };
+      } else if (directRes.status === 403) {
+        return {
+          ...pathObj,
+          status: 'RESTRICTED',
+          httpStatus: directRes.status
+        };
+      }
+    } catch (err) {
+      // Ignore and fallback
+    }
+  }
+
+  let expectFolder = false;
+  if (pathObj.expectFolder !== undefined) {
+    expectFolder = pathObj.expectFolder;
+  } else {
+    const pathLower = fetchPath.toLowerCase();
+    const isPossiblyFolder = fetchPath.endsWith('/') || 
+                             (pathObj.type === 'VDM' && !pathLower.includes('/model')) ||
+                             (pathObj.type === 'Assets' && !pathLower.split('/').pop().includes('.'));
+    expectFolder = isPossiblyFolder;
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  let slingSuffixFalsePositive = false;
 
   try {
     // Try fetching the .1.json metadata from AEM Sling GET servlet
@@ -249,95 +337,121 @@ async function checkPath(pathObj) {
     clearTimeout(timeoutId);
 
     if (res.ok) {
-      return {
-        ...pathObj,
-        status: 'VALID',
-        httpStatus: res.status
-      };
-    } else if (res.status === 404) {
-      // Fallback: Try checking the direct resource path via HEAD (handles assets with extensions, and Content Fragments/folders without extensions)
       try {
-        const directController = new AbortController();
-        const directTimeoutId = setTimeout(() => directController.abort(), 5000);
-        const directRes = await fetch(fetchPath, {
-          method: 'HEAD',
-          signal: directController.signal
-        });
-        clearTimeout(directTimeoutId);
-
-        if (directRes.ok) {
+        const data = await res.json();
+        const primaryType = data ? data["jcr:primaryType"] : null;
+        const isFolderType = primaryType === "sling:Folder" || 
+                              primaryType === "sling:OrderedFolder" || 
+                              primaryType === "nt:folder";
+        
+        if (isFolderType && !expectFolder) {
+          // Sling Suffix Resolution False Positive detected!
+          // We expected a file/fragment/page but got folder metadata instead.
+          slingSuffixFalsePositive = true;
+        } else {
           return {
             ...pathObj,
             status: 'VALID',
-            httpStatus: directRes.status
+            httpStatus: res.status
           };
         }
-      } catch (directErr) {
-        // Fallback failed, continue
+      } catch (jsonErr) {
+        // If JSON parsing fails but response was ok, fallback to assuming it is valid
+        return {
+          ...pathObj,
+          status: 'VALID',
+          httpStatus: res.status
+        };
       }
+    }
 
-      // Additional Fallback for DAM assets and Content Fragments:
-      // Try resolving via .model.json (standard AEM Content Fragment headless exporter)
-      // or via standard .json (in case Sling GET servlet restricts .1.json but allows .json)
-      if (fetchPath.includes('/content/dam/')) {
+    if (!res.ok || slingSuffixFalsePositive) {
+      const status = res.status;
+      if (status === 404 || slingSuffixFalsePositive) {
+        // Fallback: Try checking the direct resource path via HEAD (handles assets with extensions, and Content Fragments/folders without extensions)
         try {
-          const modelController = new AbortController();
-          const modelTimeoutId = setTimeout(() => modelController.abort(), 5000);
-          const modelRes = await fetch(fetchPath + '.model.json', {
+          const directController = new AbortController();
+          const directTimeoutId = setTimeout(() => directController.abort(), 5000);
+          const directRes = await fetch(fetchPath, {
             method: 'HEAD',
-            signal: modelController.signal
+            signal: directController.signal
           });
-          clearTimeout(modelTimeoutId);
+          clearTimeout(directTimeoutId);
 
-          if (modelRes.ok) {
+          if (directRes.ok) {
             return {
               ...pathObj,
               status: 'VALID',
-              httpStatus: modelRes.status
+              httpStatus: directRes.status
             };
           }
-        } catch (modelErr) {
+        } catch (directErr) {
           // Fallback failed, continue
         }
 
-        try {
-          const jsonController = new AbortController();
-          const jsonTimeoutId = setTimeout(() => jsonController.abort(), 5000);
-          const jsonRes = await fetch(fetchPath + '.json', {
-            method: 'HEAD',
-            signal: jsonController.signal
-          });
-          clearTimeout(jsonTimeoutId);
+        // Additional Fallback for DAM assets and Content Fragments:
+        // Try resolving via .model.json (standard AEM Content Fragment headless exporter)
+        // or via standard .json (in case Sling GET servlet restricts .1.json but allows .json)
+        if (fetchPath.includes('/content/dam/')) {
+          try {
+            const modelController = new AbortController();
+            const modelTimeoutId = setTimeout(() => modelController.abort(), 5000);
+            const modelRes = await fetch(fetchPath + '.model.json', {
+              method: 'HEAD',
+              signal: modelController.signal
+            });
+            clearTimeout(modelTimeoutId);
 
-          if (jsonRes.ok) {
-            return {
-              ...pathObj,
-              status: 'VALID',
-              httpStatus: jsonRes.status
-            };
+            if (modelRes.ok) {
+              return {
+                ...pathObj,
+                status: 'VALID',
+                httpStatus: modelRes.status
+              };
+            }
+          } catch (modelErr) {
+            // Fallback failed, continue
           }
-        } catch (jsonErr) {
-          // Fallback failed, continue
+
+          try {
+            const jsonController = new AbortController();
+            const jsonTimeoutId = setTimeout(() => jsonController.abort(), 5000);
+            const jsonRes = await fetch(fetchPath + '.json', {
+              method: 'HEAD',
+              signal: jsonController.signal
+            });
+            clearTimeout(jsonTimeoutId);
+
+            if (jsonRes.ok) {
+              return {
+                ...pathObj,
+                status: 'VALID',
+                httpStatus: jsonRes.status
+              };
+            }
+          } catch (jsonErr) {
+            // Fallback failed, continue
+          }
         }
+
+        return {
+          ...pathObj,
+          status: 'INVALID',
+          httpStatus: slingSuffixFalsePositive ? 404 : status
+        };
+      } else if (status === 403) {
+        return {
+          ...pathObj,
+          status: 'RESTRICTED',
+          httpStatus: status
+        };
+      } else {
+        return {
+          ...pathObj,
+          status: 'UNVERIFIED',
+          httpStatus: status
+        };
       }
-
-      return {
-        ...pathObj,
-        status: 'INVALID',
-        httpStatus: res.status
-      };
-    } else if (res.status === 403) {
-      return {
-        ...pathObj,
-        status: 'RESTRICTED',
-        httpStatus: res.status
-      };
-    } else {
-      return {
-        ...pathObj,
-        status: 'UNVERIFIED',
-        httpStatus: res.status
-      };
     }
   } catch (err) {
     clearTimeout(timeoutId);

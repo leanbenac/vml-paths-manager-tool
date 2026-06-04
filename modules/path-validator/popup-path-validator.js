@@ -61,18 +61,42 @@ document.addEventListener('DOMContentLoaded', () => {
       cleanPath = cleanPath.substring(0, cleanPath.length - 5);
     }
     
-    if (type === 'Pages') {
-      return `${origin}/editor.html${cleanPath}.html`;
-    } else if (type === 'CF') {
-      return `${origin}/ui#/aem/editor.html${cleanPath}`;
-    } else if (type === 'Assets') {
-      return `${origin}/ui#/aem/assets.html${cleanPath}`;
-    } else if (type === 'XF') {
-      return `${origin}/aem/experience-fragments.html${cleanPath}`;
-    } else if (type === 'VDM') {
-      return `${origin}/ui#/aem/vdm.html/browse${cleanPath}`;
+    // Resolve origin fallback if empty or invalid to prevent chrome-extension:// relative links
+    let targetOrigin = origin;
+    if (!targetOrigin || !targetOrigin.startsWith('http')) {
+      // 1. Try to extract from the validator textarea input
+      const rawText = validatorInput.value || '';
+      const urlMatch = rawText.match(/https?:\/\/[^\s"'<>\(\)\[\]]+/);
+      if (urlMatch) {
+        try {
+          targetOrigin = new URL(urlMatch[0]).origin;
+        } catch (e) {}
+      }
     }
-    return `${origin}/editor.html${cleanPath}.html`;
+    if (!targetOrigin || !targetOrigin.startsWith('http')) {
+      // 2. Try using the last detected origin from the Open AEM button data attribute
+      const btnOpenAemHost = document.getElementById('btnOpenAemHost');
+      if (btnOpenAemHost && btnOpenAemHost.dataset.origin) {
+        targetOrigin = btnOpenAemHost.dataset.origin;
+      }
+    }
+    if (!targetOrigin || !targetOrigin.startsWith('http')) {
+      // 3. Fallback to default instance domain
+      targetOrigin = 'https://author-p154363-e1620826.adobeaemcloud.com';
+    }
+    
+    if (type === 'Pages') {
+      return `${targetOrigin}/editor.html${cleanPath}.html`;
+    } else if (type === 'CF') {
+      return `${targetOrigin}/ui#/aem/editor.html${cleanPath}`;
+    } else if (type === 'Assets') {
+      return `${targetOrigin}/ui#/aem/assets.html${cleanPath}`;
+    } else if (type === 'XF') {
+      return `${targetOrigin}/aem/experience-fragments.html${cleanPath}`;
+    } else if (type === 'VDM') {
+      return `${targetOrigin}/ui#/aem/vdm.html/browse${cleanPath}`;
+    }
+    return `${targetOrigin}/editor.html${cleanPath}.html`;
   }
 
   // Check active tab environment and configure validation button
@@ -235,8 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Parse path strings and sub-elements from raw text
   function parsePathsFromText(text) {
     const lines = text.split('\n');
-    const paths = [];
-    let currentBasePath = '';
+    const groups = [];
+    let currentParent = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -257,28 +281,39 @@ document.addEventListener('DOMContentLoaded', () => {
           rawPath = rawPath.substring(0, rawPath.length - 5);
         }
 
-        currentBasePath = rawPath;
-        paths.push({
+        currentParent = {
           rawLine: line,
           jcrPath: rawPath,
           type: getPathType(rawPath),
-          isChild: false
-        });
+          isChild: false,
+          children: []
+        };
+        groups.push(currentParent);
       }
       // Check if line represents a nested child element (starts with >)
-      else if (line.match(/^>+/) && currentBasePath) {
+      else if (line.match(/^>+/) && currentParent) {
         const elementName = line.replace(/^[>\s]+/, '').trim();
         if (elementName) {
-          const childJcrPath = `${currentBasePath}/${elementName}`;
-          paths.push({
+          const childJcrPath = `${currentParent.jcrPath}/${elementName}`;
+          currentParent.children.push({
             rawLine: line,
             jcrPath: childJcrPath,
             type: getPathType(childJcrPath),
             isChild: true,
-            parentPath: currentBasePath,
+            parentPath: currentParent.jcrPath,
             elementName: elementName
           });
         }
+      }
+    }
+
+    const paths = [];
+    for (const group of groups) {
+      if (group.children.length > 0) {
+        paths.push(...group.children);
+      } else {
+        const { children, ...parentPathObj } = group;
+        paths.push(parentPathObj);
       }
     }
     return paths;
