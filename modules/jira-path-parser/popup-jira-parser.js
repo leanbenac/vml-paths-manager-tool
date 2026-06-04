@@ -785,37 +785,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Button: Validate Parsed Paths (Quick integration action)
-  const btnValidateParsedPaths = document.getElementById('btnValidateParsedPaths');
-  if (btnValidateParsedPaths) {
-    btnValidateParsedPaths.addEventListener('click', () => {
-      if (currentParsedData.length === 0) return;
-      
-      const text = getFormattedText(currentParsedData);
-      
-      // 1. Inject text into validator input
-      const validatorInput = document.getElementById('validatorInput');
-      if (validatorInput) {
-        validatorInput.value = text;
-        // Dispatch input event to save to cache and enable buttons in validator module
-        validatorInput.dispatchEvent(new Event('input'));
-      }
-
-      // 2. Switch to Path Validator tab
-      const pathValidatorTabBtn = document.querySelector('.tab-btn[data-target="sectionPathValidator"]');
-      if (pathValidatorTabBtn) {
-        pathValidatorTabBtn.click();
-      }
-
-      // 3. Trigger validation execution automatically
-      const btnValidatePaths = document.getElementById('btnValidatePaths');
-      if (btnValidatePaths) {
-        setTimeout(() => {
-          btnValidatePaths.click();
-        }, 120);
-      }
-    });
-  }
-
   checkActiveTab();
 });
