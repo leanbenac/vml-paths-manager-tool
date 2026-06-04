@@ -56,16 +56,16 @@ body {
 .header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px 24px;
+  gap: 10px;
+  padding: 10px 16px;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
 }
 
 .header-logo {
-  width: 46px;
-  height: 46px;
-  filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.35));
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.3));
   flex-shrink: 0;
 }
 
@@ -75,7 +75,7 @@ body {
 }
 
 .header-title {
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.5px;
@@ -83,10 +83,10 @@ body {
 }
 
 .header-version {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-secondary);
   font-weight: 400;
-  margin-top: 3px;
+  margin-top: 1px;
   letter-spacing: 0.3px;
 }
 
@@ -224,7 +224,7 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 6px 10px;
+  padding: 4px 8px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-sm);
@@ -561,16 +561,17 @@ textarea:focus {
 .footer {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 24px;
+  gap: 10px;
+  padding: 10px 16px;
   background: var(--bg-footer);
   border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .footer-logo {
-  width: 36px;
-  height: 36px;
-  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.3));
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 0 4px rgba(0, 229, 255, 0.25));
   flex-shrink: 0;
 }
 
@@ -621,7 +622,7 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.01);
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-md);
-  padding: 16px;
+  padding: 12px;
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.12), inset 0 0 12px rgba(255, 255, 255, 0.01);
   display: flex;
   flex-direction: column;
@@ -682,5 +683,92 @@ textarea:focus {
   color: #f87171 !important;
   border: 1px solid rgba(239, 68, 68, 0.25) !important;
   box-shadow: 0 0 8px rgba(239, 68, 68, 0.05) !important;
+}
+
+/* ============================================
+   TABBED NAVIGATION STYLING
+   ============================================ */
+.tab-navigation {
+  display: flex;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  margin-bottom: 10px;
+  gap: 4px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Custom Scrollbar Styles (Applied globally to lists/textareas) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-light);
+  box-shadow: 0 0 4px var(--accent-glow);
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  outline: none;
+  letter-spacing: 0.5px;
+}
+
+.tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-btn.active {
+  color: #fff;
+  background: var(--bg-btn); /* #163434 */
+  border: 1px solid var(--border-accent);
+  box-shadow: 0 0 12px rgba(45, 158, 158, 0.25);
+}
+
+.tab-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.tab-btn.active .tab-icon {
+  opacity: 1;
+  color: var(--accent-light);
+}
+
+/* Tab contents toggling */
+.tab-content {
+  display: none !important;
+}
+
+.tab-content.active {
+  display: flex !important;
 }
 

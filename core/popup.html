@@ -19,6 +19,26 @@
 
   <div class="main-container" style="padding: 16px; min-height: auto;">
     
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+      <button class="tab-btn active" data-target="sectionJiraParser">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="tab-icon">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        JIRA PARSER
+      </button>
+      <button class="tab-btn" data-target="sectionPathValidator">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="tab-icon">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+          <polyline points="22 4 12 14.01 9 11.01" />
+        </svg>
+        PATH VALIDATOR
+      </button>
+    </div>
+
     <!-- 
     Module: Publish Path Finder & Generator (Temporarily Commented Out)
     <div class="tool-section">
@@ -68,7 +88,7 @@
     -->
 
     <!-- Module: Jira AEM Path Parser & Finder -->
-    <div class="tool-section">
+    <div class="tool-section tab-content active" id="sectionJiraParser">
       <div class="tool-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
         <div class="tool-header-left" style="display: flex; gap: 10px; align-items: center;">
           <div class="module-icon module-icon--jira" style="background: rgba(37, 99, 235, 0.1); color: #2563eb; padding: 8px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;">
@@ -117,16 +137,23 @@
 
         <p id="jiraStatus" class="autofill-status" style="display: none; margin-bottom: 12px;"></p>
 
-        <!-- Scan Action Buttons (shown after successful scan) -->
-        <div id="scanActionButtons" style="display: none; gap: 8px; margin-top: 8px; margin-bottom: 12px;">
-          <button id="btnCopyFormatted" class="btn-search" style="flex: 1;">COPY FORMATTED</button>
-          <button id="btnDownloadTxt" class="btn-search" style="flex: 1; background: var(--gold-dark); color: #fff; border-color: var(--gold-light);">DOWNLOAD TXT</button>
+        <div id="scanActionButtons" style="display: none; flex-direction: column; gap: 6px; margin-top: 8px; margin-bottom: 12px;">
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <button id="btnCopyFormatted" class="btn-search" style="flex: 1;">COPY FORMATTED</button>
+            <button id="btnDownloadTxt" class="btn-search" style="flex: 1; background: var(--gold-dark); color: #fff; border-color: var(--gold-light);">DOWNLOAD TXT</button>
+          </div>
+          <button id="btnValidateParsedPaths" class="btn-search" style="width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent-light)); color: #051515; border-color: var(--accent-light); font-weight: 700; box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);">VALIDATE THESE PATHS 🚀</button>
+        </div>
+
+        <!-- Results List -->
+        <div id="jiraResultsContainer" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto; padding-right: 4px; margin-top: 8px;">
+          <!-- Dynamically populated card items -->
         </div>
       </div>
     </div>
 
     <!-- Module: Path Validator -->
-    <div class="tool-section" style="margin-top: 16px;">
+    <div class="tool-section tab-content" id="sectionPathValidator" style="display: none;">
       <div class="tool-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
         <div class="tool-header-left" style="display: flex; gap: 10px; align-items: center;">
           <div class="module-icon module-icon--validator" style="background: rgba(0, 229, 255, 0.1); color: var(--accent-light); padding: 8px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;">
@@ -148,7 +175,7 @@
 
       <div class="tool-body">
         <div class="field-group" style="margin-bottom: 10px;">
-          <textarea id="validatorInput" placeholder="Paste publish paths here (one per line) or load a TXT file..." rows="4" style="width: 100%; border: 1px solid var(--border-accent); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); padding: 8px; font-size: 11px; line-height: 1.4; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; resize: none; min-height: 80px; margin-bottom: 8px;"></textarea>
+          <textarea id="validatorInput" placeholder="Paste publish paths here (one per line) or load a TXT file..." rows="3" style="width: 100%; border: 1px solid var(--border-accent); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); padding: 8px; font-size: 11px; line-height: 1.4; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; resize: none; min-height: 75px; margin-bottom: 8px;"></textarea>
           
           <div style="display: flex; gap: 8px; margin-bottom: 8px;">
             <input type="file" id="validatorFileInput" accept=".txt" style="display: none;">
@@ -157,9 +184,12 @@
           </div>
         </div>
 
-        <div id="validatorEnvContainer" style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--text-secondary);">
+        <div id="validatorEnvContainer" style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--text-secondary); flex-wrap: wrap; gap: 4px;">
           <span>Active Host:</span>
-          <span id="validatorEnvStatus" class="asset-status-badge status-scanning" style="padding: 2px 6px;">Checking active page...</span>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <span id="validatorEnvStatus" class="asset-status-badge status-scanning" style="padding: 2px 6px;">Checking active page...</span>
+            <button id="btnOpenAemHost" class="btn-search" style="display: none; font-size: 8px; padding: 2px 6px; margin: 0; line-height: 1; border-color: var(--accent-light); color: var(--accent-light); background: rgba(0, 229, 255, 0.05); text-transform: uppercase;">Open AEM 🌐</button>
+          </div>
         </div>
 
         <button id="btnValidatePaths" class="btn-search" style="width: 100%; margin-bottom: 12px;" disabled>VALIDATE PATHS</button>
@@ -172,7 +202,7 @@
             <span>Validation Results</span>
             <span id="validatorResultsSummary" style="font-size: 10px; font-weight: normal; color: var(--text-secondary); text-transform: none;">0/0 Validated</span>
           </label>
-          <div id="validatorResultsList" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px; margin-bottom: 6px;">
+          <div id="validatorResultsList" style="display: flex; flex-direction: column; gap: 4px; max-height: 100px; overflow-y: auto; padding-right: 4px; margin-bottom: 4px;">
           </div>
         </div>
       </div>

@@ -476,6 +476,11 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
+        // Save last detected origin to storage
+        if (data && data[0] && data[0].origin) {
+          chrome.storage.local.set({ 'last_detected_aem_origin': data[0].origin });
+        }
+
         // Save to cache
         saveScanCache(tab.url, finalIssueKey, data, responseData.subtasks);
 
@@ -596,6 +601,11 @@ document.addEventListener('DOMContentLoaded', () => {
           showJiraStatus("No AEM paths detected in 'In Progress' or 'Open' PM subtasks.", true);
           if (scanActionButtons) scanActionButtons.style.display = 'none';
           return;
+        }
+
+        // Save last detected origin to storage
+        if (data && data[0] && data[0].origin) {
+          chrome.storage.local.set({ 'last_detected_aem_origin': data[0].origin });
         }
 
         // Resolve issue key safely
@@ -748,6 +758,11 @@ document.addEventListener('DOMContentLoaded', () => {
               // Restore action buttons container
               if (scanActionButtons && cached.data.length > 0) {
                 scanActionButtons.style.display = 'flex';
+                
+                // Save last detected origin to storage from cache
+                if (cached.data[0] && cached.data[0].origin) {
+                  chrome.storage.local.set({ 'last_detected_aem_origin': cached.data[0].origin });
+                }
               }
               
               showJiraStatus(`Restored cached results for ticket ${issueKey || ""}.`);
@@ -768,6 +783,38 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       console.warn("Failed to check active tab:", e);
     }
+  }
+
+  // Button: Validate Parsed Paths (Quick integration action)
+  const btnValidateParsedPaths = document.getElementById('btnValidateParsedPaths');
+  if (btnValidateParsedPaths) {
+    btnValidateParsedPaths.addEventListener('click', () => {
+      if (currentParsedData.length === 0) return;
+      
+      const text = getFormattedText(currentParsedData);
+      
+      // 1. Inject text into validator input
+      const validatorInput = document.getElementById('validatorInput');
+      if (validatorInput) {
+        validatorInput.value = text;
+        // Dispatch input event to save to cache and enable buttons in validator module
+        validatorInput.dispatchEvent(new Event('input'));
+      }
+
+      // 2. Switch to Path Validator tab
+      const pathValidatorTabBtn = document.querySelector('.tab-btn[data-target="sectionPathValidator"]');
+      if (pathValidatorTabBtn) {
+        pathValidatorTabBtn.click();
+      }
+
+      // 3. Trigger validation execution automatically
+      const btnValidatePaths = document.getElementById('btnValidatePaths');
+      if (btnValidatePaths) {
+        setTimeout(() => {
+          btnValidatePaths.click();
+        }, 120);
+      }
+    });
   }
 
   checkActiveTab();

@@ -83,9 +83,12 @@ document.addEventListener('DOMContentLoaded', () => {
       left = window.innerWidth - tooltipRect.width - 10;
     }
 
-    // Evitar desbordamiento vertical (si se sale por abajo, mostrar arriba)
+    // Evitar desbordamiento vertical (si se sale por abajo, mostrar arriba, pero solo si cabe completo sin cortarse arriba)
     if (top + tooltipRect.height > window.innerHeight - 10) {
-      top = btnRect.top - tooltipRect.height - 8;
+      const targetTop = btnRect.top - tooltipRect.height - 8;
+      if (targetTop >= 10) {
+        top = targetTop;
+      }
     }
 
     tooltipEl.style.top = `${top}px`;
@@ -130,6 +133,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cerrar tooltip al hacer clic en cualquier parte de la pantalla
   document.addEventListener('click', () => {
     hideTooltip();
+  });
+
+  // ── TAB SYSTEM ──────────────────────────────────────────────────
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+
+      // Deactivate all tab buttons
+      tabButtons.forEach(b => b.classList.remove('active'));
+      // Hide all tab contents
+      tabContents.forEach(content => {
+        content.classList.remove('active');
+        content.style.display = 'none';
+      });
+
+      // Activate selected tab button
+      btn.classList.add('active');
+      
+      // Show targeted tab content
+      const targetContent = document.getElementById(targetId);
+      if (targetContent) {
+        targetContent.classList.add('active');
+        targetContent.style.display = 'flex';
+      }
+    });
   });
 
 });
