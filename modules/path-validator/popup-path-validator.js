@@ -309,11 +309,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const paths = [];
     for (const group of groups) {
-      if (group.children.length > 0) {
-        paths.push(...group.children);
-      } else {
-        const { children, ...parentPathObj } = group;
-        paths.push(parentPathObj);
+      const { children, ...parentPathObj } = group;
+      // Always include the parent to provide visual context
+      paths.push(parentPathObj);
+      
+      if (children.length > 0) {
+        paths.push(...children);
       }
     }
     return paths;
