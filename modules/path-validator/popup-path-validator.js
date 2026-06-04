@@ -63,7 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (type === 'Pages') {
       return `${origin}/editor.html${cleanPath}.html`;
-    } else if (type === 'CF' || type === 'Assets') {
+    } else if (type === 'CF') {
+      return `${origin}/ui#/aem/editor.html${cleanPath}`;
+    } else if (type === 'Assets') {
       return `${origin}/ui#/aem/assets.html${cleanPath}`;
     } else if (type === 'XF') {
       return `${origin}/aem/experience-fragments.html${cleanPath}`;
@@ -90,15 +92,20 @@ document.addEventListener('DOMContentLoaded', () => {
                          url.includes('/sites.html/') ||
                          url.includes('/content/');
 
-      if (isAemOrVdm) {
-        activeTab = tab;
-        activeTabOrigin = new URL(url).origin;
-        const hostname = new URL(url).hostname;
-        
-        validatorEnvStatus.textContent = hostname;
-        validatorEnvStatus.className = 'asset-status-badge status-detected'; // Use a purple/active status badge style
-        
-        updateValidateButtonState();
+        if (isAemOrVdm) {
+          activeTab = tab;
+          activeTabOrigin = new URL(url).origin;
+          const hostname = new URL(url).hostname;
+          
+          validatorEnvStatus.textContent = hostname;
+          validatorEnvStatus.className = 'asset-status-badge status-detected'; // Use a purple/active status badge style
+          
+          const btnOpenAemHost = document.getElementById('btnOpenAemHost');
+          if (btnOpenAemHost) {
+            btnOpenAemHost.style.display = 'none';
+          }
+          
+          updateValidateButtonState();
       } else {
         setInactiveEnvironment("Not on AEM/VDM");
       }
@@ -114,6 +121,24 @@ document.addEventListener('DOMContentLoaded', () => {
     validatorEnvStatus.textContent = message;
     validatorEnvStatus.className = 'asset-status-badge status-empty';
     btnValidatePaths.disabled = true;
+
+    // Show AEM shortcut button if there is a known origin
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['last_detected_aem_origin'], (res) => {
+        const origin = res.last_detected_aem_origin || 'https://author-p154363-e1620826.adobeaemcloud.com';
+        const btnOpenAemHost = document.getElementById('btnOpenAemHost');
+        if (btnOpenAemHost) {
+          btnOpenAemHost.style.display = 'inline-block';
+          btnOpenAemHost.dataset.origin = origin;
+        }
+      });
+    } else {
+      const btnOpenAemHost = document.getElementById('btnOpenAemHost');
+      if (btnOpenAemHost) {
+        btnOpenAemHost.style.display = 'inline-block';
+        btnOpenAemHost.dataset.origin = 'https://author-p154363-e1620826.adobeaemcloud.com';
+      }
+    }
   }
 
   function updateValidateButtonState() {
@@ -124,9 +149,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Save cache helper
+  function saveValidatorCache(inputText, results) {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({
+        'validator_cache': {
+          inputText: inputText,
+          results: results,
+          timestamp: Date.now()
+        }
+      });
+    }
+  }
+
+  // Load cache helper
+  function loadValidatorCache() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['validator_cache'], (result) => {
+        if (result && result.validator_cache) {
+          const cache = result.validator_cache;
+          if (cache.inputText) {
+            validatorInput.value = cache.inputText;
+            updateValidateButtonState();
+          }
+          if (Array.isArray(cache.results) && cache.results.length > 0) {
+            renderResults(cache.results);
+          }
+        }
+      });
+    }
+  }
+
   // Monitor textarea input
   validatorInput.addEventListener('input', () => {
     updateValidateButtonState();
+    saveValidatorCache(validatorInput.value, null);
   });
 
   // Clear validator elements
@@ -137,6 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
     validatorResultsList.innerHTML = '';
     updateValidateButtonState();
     clearStatus();
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.remove('validator_cache');
+    }
   });
 
   // Load TXT File
@@ -152,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.onload = (event) => {
       validatorInput.value = event.target.result;
       updateValidateButtonState();
+      saveValidatorCache(event.target.result, null);
       
       // Attempt preliminary path counting
       const parsed = parsePathsFromText(event.target.result);
@@ -469,6 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (response && response.success && Array.isArray(response.results)) {
           clearStatus();
           renderResults(response.results);
+          saveValidatorCache(rawText, response.results);
         } else {
           showStatus(response?.error || "Validation failed to run.", 'error');
         }
@@ -480,6 +542,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Open AEM Host Button Click Handler
+  const btnOpenAemHost = document.getElementById('btnOpenAemHost');
+  if (btnOpenAemHost) {
+    btnOpenAemHost.addEventListener('click', () => {
+      const origin = btnOpenAemHost.dataset.origin || 'https://author-p154363-e1620826.adobeaemcloud.com';
+      const startUrl = `${origin}/ui#/aem/aem/start.html`;
+      chrome.tabs.create({ url: startUrl });
+    });
+  }
+
+  // Listen for progress updates from the content script
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((request) => {
+      if (request.action === 'validationProgress') {
+        showStatus(`Validating paths (${request.current}/${request.total})...`, 'info');
+      }
+    });
+  }
+
   // Run initial environment check
   checkEnvironment();
+  loadValidatorCache();
 });

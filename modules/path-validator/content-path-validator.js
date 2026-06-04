@@ -48,92 +48,160 @@ async function checkChildPath(pathObj) {
   const elementName = pathObj.elementName;
   
   const parentResult = await getParentData(parentPath);
-  if (!parentResult.exists) {
-    return {
-      ...pathObj,
-      status: 'INVALID',
-      httpStatus: parentResult.status || 404,
-      errorMsg: parentResult.error || 'Parent path not found'
-    };
-  }
+  if (parentResult.exists) {
+    const json = parentResult.data;
+    const searchName = elementName.toLowerCase().trim();
 
-  const json = parentResult.data;
-  const searchName = elementName.toLowerCase().trim();
-
-  for (const key in json) {
-    if (json[key] && typeof json[key] === 'object' && !Array.isArray(json[key]) && key !== 'jcr:content') {
-      const child = json[key];
-      
-      // 1. Match JCR key directly (e.g. "model-billboards" or "dual_zone_electronic")
-      const keyLower = key.toLowerCase().trim();
-      
-      // 2. Extract title from dc:title, jcr:title, custom title/label fields
-      let title = "";
-      const dcTitle = child["jcr:content"]?.["metadata"]?.["dc:title"];
-      if (dcTitle) {
-        title = Array.isArray(dcTitle) ? dcTitle[0] : dcTitle;
-      }
-      if (!title && child["jcr:content"]?.["jcr:title"]) {
-        title = child["jcr:content"]["jcr:title"];
-      }
-      if (!title && child["jcr:title"]) {
-        title = child["jcr:title"];
-      }
-      if (!title && child["title"]) {
-        title = child["title"];
-      }
-      if (!title && child["label"]) {
-        title = child["label"];
-      }
-      if (!title && child["description"]) {
-        title = child["description"];
-      }
-      if (!title && child["name"]) {
-        title = child["name"];
-      }
-      if (!title && child["headline"]) {
-        title = child["headline"];
-      }
-      
-      const titleLower = title ? title.toLowerCase().trim() : "";
-
-      // Match key or title or clean kebab-case match (converts spaces/punctuation to dashes)
-      const cleanKeyMatch = keyLower.replace(/[^a-z0-9]+/g, '-');
-      const cleanSearchMatch = searchName.replace(/[^a-z0-9]+/g, '-');
-      
-      let isMatch = (keyLower === searchName) || 
-                    (titleLower === searchName) || 
-                    (cleanKeyMatch === cleanSearchMatch) ||
-                    (cleanKeyMatch.replace(/^-+|-+$/g, '') === cleanSearchMatch.replace(/^-+|-+$/g, ''));
-
-      // 3. Prefix/fuzzy match (Crucial for VDM JCR keys that are underscore-separated truncated prefixes of the option title)
-      if (!isMatch) {
-        const keyAlpha = keyLower.replace(/[^a-z0-9]+/g, '');
-        const searchAlpha = searchName.replace(/[^a-z0-9]+/g, '');
-        if (keyAlpha.length >= 4) {
-          isMatch = searchAlpha.startsWith(keyAlpha) || keyAlpha.startsWith(searchAlpha);
+    for (const key in json) {
+      if (json[key] && typeof json[key] === 'object' && !Array.isArray(json[key]) && key !== 'jcr:content') {
+        const child = json[key];
+        
+        // 1. Match JCR key directly (e.g. "model-billboards" or "dual_zone_electronic")
+        const keyLower = key.toLowerCase().trim();
+        
+        // 2. Extract title from dc:title, jcr:title, custom title/label fields
+        let title = "";
+        const dcTitle = child["jcr:content"]?.["metadata"]?.["dc:title"];
+        if (dcTitle) {
+          title = Array.isArray(dcTitle) ? dcTitle[0] : dcTitle;
         }
-      }
+        if (!title && child["jcr:content"]?.["jcr:title"]) {
+          title = child["jcr:content"]["jcr:title"];
+        }
+        if (!title && child["jcr:title"]) {
+          title = child["jcr:title"];
+        }
+        if (!title && child["title"]) {
+          title = child["title"];
+        }
+        if (!title && child["label"]) {
+          title = child["label"];
+        }
+        if (!title && child["description"]) {
+          title = child["description"];
+        }
+        if (!title && child["name"]) {
+          title = child["name"];
+        }
+        if (!title && child["headline"]) {
+          title = child["headline"];
+        }
+        
+        const titleLower = title ? title.toLowerCase().trim() : "";
 
-      if (isMatch) {
-        // Match found! Resolve true JCR path
-        const resolvedJcrPath = `${parentPath}/${key}`;
-        return {
-          ...pathObj,
-          jcrPath: resolvedJcrPath,
-          status: 'VALID',
-          httpStatus: parentResult.status
-        };
+        // Match key or title or clean kebab-case match (converts spaces/punctuation to dashes)
+        const cleanKeyMatch = keyLower.replace(/[^a-z0-9]+/g, '-');
+        const cleanSearchMatch = searchName.replace(/[^a-z0-9]+/g, '-');
+        
+        let isMatch = (keyLower === searchName) || 
+                      (titleLower === searchName) || 
+                      (cleanKeyMatch === cleanSearchMatch) ||
+                      (cleanKeyMatch.replace(/^-+|-+$/g, '') === cleanSearchMatch.replace(/^-+|-+$/g, ''));
+
+        // 3. Substring/fuzzy match (Crucial for JCR keys that are parts of the option title, e.g. "darkhorsepremium" in "2026 Mustang® Dark Horse® Premium")
+        if (!isMatch) {
+          const keyAlpha = keyLower.replace(/[^a-z0-9]+/g, '');
+          const searchAlpha = searchName.replace(/[^a-z0-9]+/g, '');
+          if (keyAlpha.length >= 4) {
+            isMatch = searchAlpha.includes(keyAlpha) || keyAlpha.includes(searchAlpha);
+          }
+        }
+
+        if (isMatch) {
+          // Match found! Resolve true JCR path
+          const resolvedJcrPath = `${parentPath}/${key}`;
+          return {
+            ...pathObj,
+            jcrPath: resolvedJcrPath,
+            status: 'VALID',
+            httpStatus: parentResult.status
+          };
+        }
       }
     }
   }
 
-  // Element not found in parent folder
+  // FALLBACK: If parent folder is not queryable OR the child wasn't found in the parent metadata list,
+  // try direct validation of guessed child keys as a last resort.
+  const guessedKeys = new Set();
+  // 1. Direct name
+  guessedKeys.add(elementName.trim());
+  // 2. Lowercase direct name
+  guessedKeys.add(elementName.toLowerCase().trim());
+  // 3. Kebab-case (spaces/caps/punctuation to dashes)
+  guessedKeys.add(elementName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
+  // 4. Snake-case (spaces/punctuation to underscores)
+  guessedKeys.add(elementName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''));
+  // 5. Lowercase alphanumeric-only (no separators)
+  guessedKeys.add(elementName.toLowerCase().trim().replace(/[^a-z0-9]+/g, ''));
+
+  // 6. Deduce keys by filtering out year numbers and words already present in the parent path.
+  // This helps match model keys like "darkhorsepremium" under ".../mustang/2026/model"
+  try {
+    const parentWords = new Set(
+      parentPath.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 2)
+    );
+    const elementClean = elementName.replace(/[^a-zA-Z0-9\s-_]+/g, '');
+    const elementWordsRaw = elementClean
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2') // split camelCase
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+
+    const filteredWords = elementWordsRaw.filter(word => {
+      // Remove years or numbers
+      if (/^\d+$/.test(word)) return false;
+      // Remove words that exist in the parent path
+      if (parentWords.has(word)) return false;
+      return true;
+    });
+
+    if (filteredWords.length > 0 && filteredWords.length < elementWordsRaw.length) {
+      guessedKeys.add(filteredWords.join(''));
+      guessedKeys.add(filteredWords.join('-'));
+      guessedKeys.add(filteredWords.join('_'));
+    }
+  } catch (err) {
+    console.warn("Failed to deduce parent-filtered keys:", err);
+  }
+
+  // Add singular/plural variations to expand coverage (e.g. "model-billboard" vs "model-billboards")
+  const expandedKeys = new Set(guessedKeys);
+  for (const key of guessedKeys) {
+    if (!key) continue;
+    if (key.endsWith('s')) {
+      const singular = key.substring(0, key.length - 1);
+      if (singular) expandedKeys.add(singular);
+    } else {
+      expandedKeys.add(key + 's');
+    }
+  }
+
+  for (const key of expandedKeys) {
+    if (!key) continue;
+    const childJcrPath = `${parentPath}/${key}`;
+    
+    const checkResult = await checkPath({
+      jcrPath: childJcrPath,
+      isChild: false,
+      type: pathObj.type
+    });
+
+    if (checkResult.status === 'VALID' || checkResult.status === 'RESTRICTED') {
+      return {
+        ...pathObj,
+        jcrPath: childJcrPath,
+        status: checkResult.status,
+        httpStatus: checkResult.httpStatus
+      };
+    }
+  }
+
   return {
     ...pathObj,
     status: 'INVALID',
-    httpStatus: 404,
-    errorMsg: `Element "${elementName}" not found in parent folder`
+    httpStatus: parentResult.status || 404,
+    errorMsg: `Element "${elementName}" not found or verified in parent folder`
   };
 }
 
@@ -187,29 +255,72 @@ async function checkPath(pathObj) {
         httpStatus: res.status
       };
     } else if (res.status === 404) {
-      // Fallback: If it looks like an asset file, try checking the direct resource path via HEAD
-      const filename = fetchPath.split('/').pop();
-      if (filename && filename.includes('.') && !filename.endsWith('.json')) {
-        try {
-          const assetController = new AbortController();
-          const assetTimeoutId = setTimeout(() => assetController.abort(), 5000);
-          const assetRes = await fetch(fetchPath, {
-            method: 'HEAD',
-            signal: assetController.signal
-          });
-          clearTimeout(assetTimeoutId);
+      // Fallback: Try checking the direct resource path via HEAD (handles assets with extensions, and Content Fragments/folders without extensions)
+      try {
+        const directController = new AbortController();
+        const directTimeoutId = setTimeout(() => directController.abort(), 5000);
+        const directRes = await fetch(fetchPath, {
+          method: 'HEAD',
+          signal: directController.signal
+        });
+        clearTimeout(directTimeoutId);
 
-          if (assetRes.ok) {
+        if (directRes.ok) {
+          return {
+            ...pathObj,
+            status: 'VALID',
+            httpStatus: directRes.status
+          };
+        }
+      } catch (directErr) {
+        // Fallback failed, continue
+      }
+
+      // Additional Fallback for DAM assets and Content Fragments:
+      // Try resolving via .model.json (standard AEM Content Fragment headless exporter)
+      // or via standard .json (in case Sling GET servlet restricts .1.json but allows .json)
+      if (fetchPath.includes('/content/dam/')) {
+        try {
+          const modelController = new AbortController();
+          const modelTimeoutId = setTimeout(() => modelController.abort(), 5000);
+          const modelRes = await fetch(fetchPath + '.model.json', {
+            method: 'HEAD',
+            signal: modelController.signal
+          });
+          clearTimeout(modelTimeoutId);
+
+          if (modelRes.ok) {
             return {
               ...pathObj,
               status: 'VALID',
-              httpStatus: assetRes.status
+              httpStatus: modelRes.status
             };
           }
-        } catch (assetErr) {
-          // Fallback failed, continue with original 404 status
+        } catch (modelErr) {
+          // Fallback failed, continue
+        }
+
+        try {
+          const jsonController = new AbortController();
+          const jsonTimeoutId = setTimeout(() => jsonController.abort(), 5000);
+          const jsonRes = await fetch(fetchPath + '.json', {
+            method: 'HEAD',
+            signal: jsonController.signal
+          });
+          clearTimeout(jsonTimeoutId);
+
+          if (jsonRes.ok) {
+            return {
+              ...pathObj,
+              status: 'VALID',
+              httpStatus: jsonRes.status
+            };
+          }
+        } catch (jsonErr) {
+          // Fallback failed, continue
         }
       }
+
       return {
         ...pathObj,
         status: 'INVALID',
@@ -248,6 +359,18 @@ async function runValidation(paths) {
     const promises = batch.map(pathObj => checkPath(pathObj));
     const batchResults = await Promise.all(promises);
     results.push(...batchResults);
+
+    // Send real-time progress updates back to the popup
+    const progressCount = Math.min(i + batchSize, paths.length);
+    try {
+      chrome.runtime.sendMessage({
+        action: 'validationProgress',
+        current: progressCount,
+        total: paths.length
+      });
+    } catch (err) {
+      // Ignore if popup is closed or channel is unavailable
+    }
   }
   return results;
 }
