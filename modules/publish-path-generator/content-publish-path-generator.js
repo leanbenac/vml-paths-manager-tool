@@ -4,31 +4,18 @@
 // ============================================
 
 function findTitleInDocument(doc) {
-  // 1. Selector para Content Fragments
-  let titleEl = doc.querySelector('.cfm-editor-title-fragment');
-  if (titleEl) return titleEl.textContent.trim();
+  const selectors = [
+    '.cfm-editor-title-fragment',
+    '.editor-GlobalBar-pageTitle',
+    '.vdm-app-header .b-nav-dropdown > a > span',
+    '.vdm-app-header .dropdown-toggle > span',
+    '.vdm-app-header .dropdown-toggle',
+    '.b-nav-dropdown > a > span',
+    '.dropdown-toggle > span'
+  ].join(', ');
 
-  // 2. Selector para Experience Fragments
-  titleEl = doc.querySelector('.editor-GlobalBar-pageTitle');
-  if (titleEl) return titleEl.textContent.trim();
-
-  // 3. Selector para VDM Author (Varios fallbacks para mayor robustez)
-  titleEl = doc.querySelector('.vdm-app-header .b-nav-dropdown > a > span');
-  if (titleEl && titleEl.textContent.trim()) return titleEl.textContent.trim();
-
-  titleEl = doc.querySelector('.vdm-app-header .dropdown-toggle > span');
-  if (titleEl && titleEl.textContent.trim()) return titleEl.textContent.trim();
-
-  titleEl = doc.querySelector('.vdm-app-header .dropdown-toggle');
-  if (titleEl && titleEl.textContent.trim()) return titleEl.textContent.trim();
-
-  titleEl = doc.querySelector('.b-nav-dropdown > a > span');
-  if (titleEl && titleEl.textContent.trim()) return titleEl.textContent.trim();
-
-  titleEl = doc.querySelector('.dropdown-toggle > span');
-  if (titleEl && titleEl.textContent.trim()) return titleEl.textContent.trim();
-
-  return '';
+  const titleEl = doc.querySelector(selectors);
+  return titleEl && titleEl.textContent.trim() ? titleEl.textContent.trim() : '';
 }
 
 function detectAssetsInDoc(doc) {

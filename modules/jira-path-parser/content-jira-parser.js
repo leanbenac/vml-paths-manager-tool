@@ -125,12 +125,7 @@ function scrapeComments() {
   }
 
   // Deduplicate comments
-  const uniqueComments = [];
-  finalComments.forEach(txt => {
-    if (txt && !uniqueComments.includes(txt)) {
-      uniqueComments.push(txt);
-    }
-  });
+  const uniqueComments = [...new Set(finalComments.filter(Boolean))];
 
   return uniqueComments;
 }

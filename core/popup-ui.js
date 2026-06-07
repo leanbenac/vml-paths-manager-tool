@@ -163,4 +163,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // ── AUTO-SWITCH TAB BASED ON ACTIVE URL ─────────────────────────
+  if (typeof chrome !== 'undefined' && chrome.tabs) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs[0] && tabs[0].url) {
+        const url = tabs[0].url.toLowerCase();
+        // Check if it is an AEM URL
+        const isAEM = url.includes('/content/') || 
+                      url.includes('/ui#/aem/') || 
+                      url.includes('/assets.html/') || 
+                      url.includes('/editor.html/') ||
+                      url.includes('adobeaemcloud.com');
+        
+        if (isAEM) {
+          const validatorBtn = Array.from(tabButtons).find(btn => btn.dataset.target === 'sectionPathValidator');
+          if (validatorBtn) {
+            validatorBtn.click();
+          }
+        }
+      }
+    });
+  }
+
 });
