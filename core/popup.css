@@ -236,6 +236,10 @@ textarea:focus {
   border-color: var(--border-accent);
 }
 
+.autofix-pill-link:hover {
+  background: rgba(255, 171, 0, 0.2) !important;
+}
+
 .detected-asset-left {
   display: flex;
   align-items: center;

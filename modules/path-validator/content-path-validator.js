@@ -320,7 +320,8 @@ async function checkPath(pathObj) {
     const isPossiblyFolder = fetchPath.endsWith('/') || 
                              (pathObj.type === 'VDM' && !pathLower.includes('/model')) ||
                              (pathObj.type === 'Assets' && !pathLower.split('/').pop().includes('.'));
-    expectFolder = isPossiblyFolder;
+    // Parent rows (not children) are generally folders, except for Pages and VDM paths
+    expectFolder = isPossiblyFolder || (!pathObj.isChild && pathObj.type !== 'Pages' && pathObj.type !== 'VDM');
   }
 
   const controller = new AbortController();

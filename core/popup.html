@@ -136,6 +136,17 @@
         </div>
 
         <p id="jiraStatus" class="autofill-status" style="display: none; margin-bottom: 12px;"></p>
+        
+        <!-- Auto-Fix Panel -->
+        <div id="autoFixLogContainer" style="display: none; flex-direction: column; background: rgba(255, 171, 0, 0.05); border: 1px solid rgba(255, 171, 0, 0.2); border-radius: var(--radius-sm); padding: 10px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffab00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span style="font-size: 10px; font-weight: 700; color: #ffab00; letter-spacing: 0.5px;">AUTO-FIXED PATHS IN:</span>
+          </div>
+          <div id="autoFixPillsWrapper" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+        </div>
 
         <!-- Scan Action Buttons (shown after successful scan) -->
         <div id="scanActionButtons" style="display: none; gap: 8px; margin-top: 8px; margin-bottom: 12px;">

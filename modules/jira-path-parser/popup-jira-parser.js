@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!btnScanJira) return;
 
   let currentParsedData = [];
+  let autoFixLog = [];
 
   // Show status messages
   function showJiraStatus(text, isError = false) {
@@ -29,8 +30,54 @@ document.addEventListener('DOMContentLoaded', () => {
     jiraStatusEl.className = 'autofill-status ' + (isError ? 'autofill-status--error' : 'autofill-status--success');
   }
 
+  function showJiraStatusHtml(html, isError = false) {
+    if (!jiraStatusEl) return;
+    jiraStatusEl.innerHTML = html;
+    jiraStatusEl.style.display = 'block';
+    jiraStatusEl.className = 'autofill-status ' + (isError ? 'autofill-status--error' : 'autofill-status--success');
+  }
+
+  const autoFixLogContainer = document.getElementById('autoFixLogContainer');
+  const autoFixPillsWrapper = document.getElementById('autoFixPillsWrapper');
+
+  function renderAutoFixPills(logs, origin) {
+    if (!autoFixLogContainer || !autoFixPillsWrapper) return;
+    if (!logs || logs.length === 0) {
+      autoFixLogContainer.style.display = 'none';
+      return;
+    }
+
+    const uniqueLogs = [];
+    const seen = new Set();
+    for (const log of logs) {
+      const id = log.key + log.type;
+      if (!seen.has(id)) {
+          seen.add(id);
+          uniqueLogs.push(log);
+      }
+    }
+
+    let html = '';
+    for (const log of uniqueLogs) {
+      if (log.key && origin) {
+          html += `<a href="${origin}/browse/${log.key}" target="_blank" class="autofix-pill-link" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; text-decoration: none; border: 1px solid rgba(255, 171, 0, 0.3); font-size: 10px; transition: background 0.2s;">
+            <span style="font-weight: 700;">${log.key}</span>
+            <span style="opacity:0.7; font-size: 9px; text-transform: uppercase;">${log.type}</span>
+          </a>`;
+      } else {
+          html += `<span style="display: inline-flex; align-items: center; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; font-size: 10px; border: 1px solid rgba(255, 171, 0, 0.3);">
+            ${log.type}
+          </span>`;
+      }
+    }
+    
+    autoFixPillsWrapper.innerHTML = html;
+    autoFixLogContainer.style.display = 'flex';
+  }
+
   function clearJiraStatus() {
     if (jiraStatusEl) jiraStatusEl.style.display = 'none';
+    if (autoFixLogContainer) autoFixLogContainer.style.display = 'none';
   }
 
   function updateSubtasksButton(subtasks) {
@@ -50,22 +97,26 @@ document.addEventListener('DOMContentLoaded', () => {
   updateSubtasksButton([]);
 
   // --- CACHE MANAGEMENT ---
-  function saveScanCache(url, issueKey, data, subtasks) {
+  function saveScanCache(url, issueKey, data, subtasks, fixLog) {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       const cacheObj = {
         issueKey: issueKey,
         data: data,
         subtasks: subtasks || [],
+        autoFixLog: fixLog || [],
         timestamp: Date.now()
       };
-      chrome.storage.local.set({ [url]: cacheObj });
+      const storageKey = issueKey ? `jira_cache_${issueKey}` : `jira_cache_${url}`;
+      chrome.storage.local.set({ [storageKey]: cacheObj });
     }
   }
 
   function loadScanCache(url, callback) {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.get([url], (result) => {
-        callback(result[url]);
+      const issueKey = getJiraKeyFromUrl(url);
+      const storageKey = issueKey ? `jira_cache_${issueKey}` : `jira_cache_${url}`;
+      chrome.storage.local.get([storageKey], (result) => {
+        callback(result[storageKey]);
       });
     } else {
       callback(null);
@@ -209,12 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function hasAemUrls(text) {
     if (!text) return false;
     const matches = text.match(/https?:\/\/[^\s"'<>\(\)\[\]]+/g) || [];
-    return matches.some(url => 
-      url.includes('/content/') || 
-      url.includes('/ui#/aem/') || 
-      url.includes('/assets.html/') || 
-      url.includes('/editor.html/')
-    );
+    return matches.some(url => {
+      if (url.includes('wcmmode=')) return false;
+      return url.includes('/content/') || 
+             url.includes('/ui#/aem/') || 
+             url.includes('/assets.html/') || 
+             url.includes('/editor.html/');
+    });
   }
 
   function getCategory(jcrPath, url) {
@@ -245,18 +297,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const lines = plainText.split('\n');
     const results = [];
     let currentGroup = null;
+    let currentTicketKey = '';
 
     for (let line of lines) {
+      if (line.startsWith('[TICKET_KEY:')) {
+        currentTicketKey = line.substring(12, line.lastIndexOf(']'));
+        continue;
+      }
       let cleanLine = line.trim();
 
       // Find an AEM URL in this line
       const urlMatch = cleanLine.match(/https?:\/\/[^\s"'<>\(\)\[\]]+/);
       if (urlMatch) {
         const cleanUrl = urlMatch[0];
-        const isAemUrl = cleanUrl.includes('/content/') || 
+        const isAemUrl = !cleanUrl.includes('wcmmode=') && (
+                         cleanUrl.includes('/content/') || 
                          cleanUrl.includes('/ui#/aem/') || 
                          cleanUrl.includes('/assets.html/') || 
-                         cleanUrl.includes('/editor.html/');
+                         cleanUrl.includes('/editor.html/'));
 
         if (isAemUrl) {
           try {
@@ -267,8 +325,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const parts = cleanUrl.split('/content/');
             if (parts.length >= 2) {
               // Clean up query parameters or hashes from JCR path
-              const cleanPathPart = parts[1].split('?')[0].split('#')[0];
-              const folderJcrPath = '/content/' + cleanPathPart;
+              let cleanPathPart = parts[1].split('?')[0].split('#')[0];
+              let folderJcrPath = '/content/' + cleanPathPart;
+
+              if (folderJcrPath.endsWith('.html')) {
+                folderJcrPath = folderJcrPath.substring(0, folderJcrPath.length - 5);
+              }
+
+              // If copied from an editor view, the URL points to the page itself, not the parent folder.
+              // We remove the last segment so it acts as a proper parent for the children below.
+              if (cleanUrl.includes('editor.html')) {
+                folderJcrPath = folderJcrPath.substring(0, folderJcrPath.lastIndexOf('/'));
+                if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Editor URL' });
+                else autoFixLog.push({ key: null, type: 'Editor URL' });
+              }
+
+              // Normalize XF URLs for AEMaaCS
+              let normalizedBaseUrl = cleanUrl;
+              if (normalizedBaseUrl.includes('/aem/experience-fragments.html') && !normalizedBaseUrl.includes('ui#/aem/')) {
+                normalizedBaseUrl = normalizedBaseUrl.replace('/aem/experience-fragments.html', '/ui#/aem/aem/experience-fragments.html');
+              }
 
               // Deduplicate: merge elements if this folder path was already seen
               let existingGroup = results.find(g => g.folderJcrPath === folderJcrPath);
@@ -276,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentGroup = existingGroup;
               } else {
                 currentGroup = {
-                  baseUrl: cleanUrl,
+                  baseUrl: normalizedBaseUrl,
                   origin: origin,
                   folderJcrPath: folderJcrPath,
                   category: getCategory(folderJcrPath, cleanUrl),
@@ -295,6 +371,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Strip any sequence of leading '>' and spaces
         const elementName = cleanLine.replace(/^[>\s]+/, '');
         if (elementName) {
+          // SMART FIX: If the folder path already ends with the element name, 
+          // the publisher pasted the direct URL to the item instead of the parent folder.
+          if (currentGroup.folderJcrPath.toLowerCase().endsWith('/' + elementName.toLowerCase().trim())) {
+            currentGroup.folderJcrPath = currentGroup.folderJcrPath.substring(0, currentGroup.folderJcrPath.lastIndexOf('/'));
+            const lastSlashIdx = currentGroup.baseUrl.lastIndexOf('/');
+            if (lastSlashIdx !== -1) {
+              currentGroup.baseUrl = currentGroup.baseUrl.substring(0, lastSlashIdx);
+            }
+            if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Item URL Fixed' });
+            else autoFixLog.push({ key: null, type: 'Item URL Fixed' });
+          }
+
           const childJcrPath = `${currentGroup.folderJcrPath}/${elementName}`;
           
           // Deduplicate elements under the same folder case-insensitively
@@ -367,9 +455,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Keep key badge showing the issue key immediately from the URL
-        const urlKey = getJiraKeyFromUrl(tab.url);
-        if (activeTicketInfo && urlKey) {
-          activeTicketInfo.textContent = `Ticket: ${urlKey}`;
+        const issueKey = getJiraKeyFromUrl(tab.url);
+        if (activeTicketInfo && issueKey) {
+          activeTicketInfo.textContent = `Ticket: ${issueKey}`;
           activeTicketInfo.style.display = 'inline-block';
         }
         showJiraStatus("Scanning active tab...");
@@ -454,12 +542,13 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log(`Active Jira Ticket: No comments with publish paths found. Scanning the description.`);
         }
 
-        // Parse and process
-        const data = extractAEMData(chosenText);
-        currentParsedData = data;
-
         // Resolve issue key safely
         const finalIssueKey = responseData.issueKey || issueKey;
+
+        // Parse and process
+        autoFixLog = [];
+        const data = extractAEMData(`[TICKET_KEY:${finalIssueKey}]\n` + chosenText);
+        currentParsedData = data;
 
         // Update active ticket info badge
         if (activeTicketInfo && finalIssueKey) {
@@ -488,7 +577,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = getFormattedText(data);
         navigator.clipboard.writeText(text)
           .then(() => {
-            showJiraStatus(`Scraped ticket ${finalIssueKey} & copied to clipboard!`);
+            const origin = tab && tab.url ? new URL(tab.url).origin : '';
+            renderAutoFixPills(autoFixLog, origin);
+            if (autoFixLog.length > 0) {
+              showJiraStatusHtml(`<strong>Copied to clipboard!</strong>`, false);
+            } else {
+              showJiraStatus(`Scraped ticket ${finalIssueKey} & copied to clipboard!`);
+            }
           })
           .catch(err => {
             showJiraStatus("Scraped successfully, but failed to auto-copy.", true);
@@ -576,10 +671,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 chosenText = desc;
                 console.log(`Subtask ${key}: No comments with publish paths found. Scanning the description.`);
               }
-              return chosenText;
+              return { key: key, text: chosenText };
             } catch (err) {
               console.warn(`Failed to fetch details for subtask ${key}:`, err);
-              return '';
+              return null;
             }
           });
 
@@ -590,10 +685,23 @@ document.addEventListener('DOMContentLoaded', () => {
           showJiraStatus(`Scanning subtasks (${completedCount}/${keys.length})...`);
         }
 
-        const validResults = fetchedTexts.filter(Boolean);
-        const consolidatedText = validResults.join('\n\n=== NEXT SUBTASK ===\n\n');
+        const validResults = fetchedTexts.filter(r => r && r.text && r.text.trim().length > 0);
+        
+        // Pre-warm the cache for each individual subtask so they load instantly if the user opens them
+        const backupLog = [...autoFixLog];
+        for (const res of validResults) {
+          autoFixLog = []; // clear to prevent polluting the main log with duplicates
+          const singleData = extractAEMData(res.text);
+          if (singleData.length > 0) {
+            saveScanCache(tab.url, res.key, singleData, [], autoFixLog);
+          }
+        }
+        autoFixLog = backupLog; // restore
+
+        const consolidatedText = validResults.map(r => `[TICKET_KEY:${r.key}]\n${r.text}`).join('\n\n');
 
         // Parse and process
+        autoFixLog = [];
         const data = extractAEMData(consolidatedText);
         currentParsedData = data;
 
@@ -627,13 +735,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Save to cache
-        saveScanCache(tab.url, issueKey, data, keys);
+        saveScanCache(tab.url, issueKey, data, keys, autoFixLog);
 
         // Auto-copy to clipboard
         const text = getFormattedText(data);
         navigator.clipboard.writeText(text)
           .then(() => {
-            showJiraStatus(`Scraped ${validResults.length} active PM subtasks & copied to clipboard!`);
+            const origin = tab && tab.url ? new URL(tab.url).origin : '';
+            renderAutoFixPills(autoFixLog, origin);
+            if (autoFixLog.length > 0) {
+              showJiraStatusHtml(`<strong>Scraped ${validResults.length} tasks & copied!</strong>`, false);
+            } else {
+              showJiraStatus(`Scraped ${validResults.length} active PM subtasks & copied to clipboard!`);
+            }
           })
           .catch(err => {
             showJiraStatus("Scraped subtasks successfully, but failed to auto-copy.", true);
@@ -741,10 +855,18 @@ document.addEventListener('DOMContentLoaded', () => {
               if (!issueKey || issueKey.toLowerCase().includes('scanning')) {
                 issueKey = getJiraKeyFromUrl(tab.url);
                 // Save healed cache back to storage
-                saveScanCache(tab.url, issueKey, cached.data, cached.subtasks);
+                saveScanCache(tab.url, issueKey, cached.data, cached.subtasks, cached.autoFixLog);
               }
 
               currentParsedData = cached.data;
+              
+              // Restore UI pills if there were fixes
+              if (cached.autoFixLog && cached.autoFixLog.length > 0) {
+                 const origin = tab && tab.url ? new URL(tab.url).origin : '';
+                 renderAutoFixPills(cached.autoFixLog, origin);
+              } else {
+                 if (autoFixLogContainer) autoFixLogContainer.style.display = 'none';
+              }
               
               // Restore active ticket info badge
               if (activeTicketInfo && issueKey) {

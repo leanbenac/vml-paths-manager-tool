@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (type === 'Assets') {
       return `${targetOrigin}/ui#/aem/assets.html${cleanPath}`;
     } else if (type === 'XF') {
-      return `${targetOrigin}/aem/experience-fragments.html${cleanPath}`;
+      return `${targetOrigin}/ui#/aem/aem/experience-fragments.html${cleanPath}`;
     } else if (type === 'VDM') {
       return `${targetOrigin}/ui#/aem/vdm.html/browse${cleanPath}`;
     }
@@ -290,7 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         groups.push(currentParent);
       }
-      // Check if line represents a nested child element (starts with >)
       else if (line.match(/^>+/) && currentParent) {
         const elementName = line.replace(/^[>\s]+/, '').trim();
         if (elementName) {
