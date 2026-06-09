@@ -1,6 +1,6 @@
 $manifest = Get-Content -Raw -Path manifest.json | ConvertFrom-Json
 $version = $manifest.version
-$zipName = "vml-content-tool-v$version.zip"
+$zipName = "vml-paths-manager-tool-v$version.zip"
 
 Write-Host "Creando empaquetado para la versión $version..."
 
