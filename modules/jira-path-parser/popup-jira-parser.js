@@ -332,12 +332,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 folderJcrPath = folderJcrPath.substring(0, folderJcrPath.length - 5);
               }
 
-              // If copied from an editor view, the URL points to the page itself, not the parent folder.
-              // We remove the last segment so it acts as a proper parent for the children below.
               if (cleanUrl.includes('editor.html')) {
-                folderJcrPath = folderJcrPath.substring(0, folderJcrPath.lastIndexOf('/'));
-                if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Editor URL' });
-                else autoFixLog.push({ key: null, type: 'Editor URL' });
+                if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Editor URL Ignored' });
+                else autoFixLog.push({ key: null, type: 'Editor URL Ignored' });
+                currentGroup = null;
+                continue;
               }
 
               // Normalize XF URLs for AEMaaCS

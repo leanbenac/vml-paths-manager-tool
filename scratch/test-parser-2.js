@@ -41,9 +41,12 @@ function extractAEMData(jiraText) {
           const urlObj = new URL(cleanUrl);
           const origin = urlObj.origin;
           
-          // Extract JCR path by splitting on '/content/'
           const parts = cleanUrl.split('/content/');
           if (parts.length >= 2) {
+            if (cleanUrl.includes('editor.html')) {
+              currentGroup = null;
+              continue;
+            }
             // Clean up query parameters or hashes from JCR path
             const cleanPathPart = parts[1].split('?')[0].split('#')[0];
             const folderJcrPath = '/content/' + cleanPathPart;
