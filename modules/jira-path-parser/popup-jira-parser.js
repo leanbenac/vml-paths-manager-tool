@@ -30,15 +30,68 @@ document.addEventListener('DOMContentLoaded', () => {
     jiraStatusEl.className = 'autofill-status ' + (isError ? 'autofill-status--error' : 'autofill-status--success');
   }
 
-  function showJiraStatusHtml(html, isError = false) {
+  function showJiraStatusBold(text, isError = false) {
     if (!jiraStatusEl) return;
-    jiraStatusEl.innerHTML = html;
+    jiraStatusEl.textContent = '';
+    const strong = document.createElement('strong');
+    strong.textContent = text;
+    jiraStatusEl.appendChild(strong);
     jiraStatusEl.style.display = 'block';
     jiraStatusEl.className = 'autofill-status ' + (isError ? 'autofill-status--error' : 'autofill-status--success');
   }
 
   const autoFixLogContainer = document.getElementById('autoFixLogContainer');
   const autoFixPillsWrapper = document.getElementById('autoFixPillsWrapper');
+
+  function showVmlConfirm(title, message, confirmText = "OK", cancelText = "CANCEL") {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('vmlModal');
+      const titleEl = document.getElementById('vmlModalTitle');
+      const textEl = document.getElementById('vmlModalText');
+      const okBtn = document.getElementById('vmlModalOkBtn');
+      const cancelBtn = document.getElementById('vmlModalCancelBtn');
+      const closeBtn = document.getElementById('vmlModalClose');
+      const listEl = document.getElementById('vmlModalList');
+
+      if (!modal) {
+        resolve(confirm(title + '\n\n' + message));
+        return;
+      }
+
+      titleEl.textContent = title;
+      textEl.textContent = message;
+      if (listEl) listEl.textContent = '';
+      if (okBtn) okBtn.textContent = confirmText;
+      
+      if (cancelBtn) {
+        cancelBtn.style.display = 'block';
+        cancelBtn.textContent = cancelText;
+      }
+
+      modal.style.display = 'flex';
+
+      function cleanup() {
+        modal.style.display = 'none';
+        if (okBtn) okBtn.removeEventListener('click', onOk);
+        if (cancelBtn) cancelBtn.removeEventListener('click', onCancel);
+        if (closeBtn) closeBtn.removeEventListener('click', onCancel);
+      }
+
+      function onOk() {
+        cleanup();
+        resolve(true);
+      }
+
+      function onCancel() {
+        cleanup();
+        resolve(false);
+      }
+
+      if (okBtn) okBtn.addEventListener('click', onOk);
+      if (cancelBtn) cancelBtn.addEventListener('click', onCancel);
+      if (closeBtn) closeBtn.addEventListener('click', onCancel);
+    });
+  }
 
   function renderAutoFixPills(logs, origin) {
     if (!autoFixLogContainer || !autoFixPillsWrapper) return;
@@ -60,8 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
         shortType = `Locale \u2192 ${locale}`;
       } else if (log.type === 'Editor URL Converted') {
         shortType = 'Editor URL';
-      } else if (log.type === 'Item URL Fixed') {
-        shortType = 'Item URL';
+      } else if (log.type === 'Item URL Fixed' || log.type === 'Item URL Unified') {
+        shortType = 'Item URL Unified';
+      } else if (log.type === 'Direct Item Extracted') {
+        shortType = 'Item Extracted';
       } else if (log.type === 'Editor URL Ignored') {
         shortType = 'Editor Ignored';
       }
@@ -72,24 +127,39 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    let html = '';
+    autoFixPillsWrapper.textContent = '';
     for (const [key, group] of Object.entries(groupedLogs)) {
-      const typesStr = Array.from(group.types).join(' &bull; ');
+      const typesStr = Array.from(group.types).join(' \u2022 ');
       const tooltip = `Auto Fixes Applied:\n- ${group.rawTypes.join('\n- ')}`;
       
       if (key !== 'UNKNOWN' && origin) {
-          html += `<a href="${origin}/browse/${key}" target="_blank" title="${tooltip}" class="autofix-pill-link" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; text-decoration: none; border: 1px solid rgba(255, 171, 0, 0.3); font-size: 10px; transition: background 0.2s;">
-            <span style="font-weight: 700;">${key}</span>
-            <span style="opacity:0.7; font-size: 9px; text-transform: uppercase;">${typesStr}</span>
-          </a>`;
+          const a = document.createElement('a');
+          a.href = `${origin}/browse/${key}`;
+          a.target = '_blank';
+          a.title = tooltip;
+          a.className = 'autofix-pill-link';
+          a.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; text-decoration: none; border: 1px solid rgba(255, 171, 0, 0.3); font-size: 10px; transition: background 0.2s;';
+          
+          const s1 = document.createElement('span');
+          s1.style.fontWeight = '700';
+          s1.textContent = key;
+          
+          const s2 = document.createElement('span');
+          s2.style.cssText = 'opacity:0.7; font-size: 9px; text-transform: uppercase;';
+          s2.textContent = typesStr;
+          
+          a.appendChild(s1);
+          a.appendChild(s2);
+          autoFixPillsWrapper.appendChild(a);
       } else {
-          html += `<span title="${tooltip}" style="display: inline-flex; align-items: center; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; font-size: 10px; border: 1px solid rgba(255, 171, 0, 0.3);">
-            ${typesStr}
-          </span>`;
+          const s = document.createElement('span');
+          s.title = tooltip;
+          s.style.cssText = 'display: inline-flex; align-items: center; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; font-size: 10px; border: 1px solid rgba(255, 171, 0, 0.3);';
+          s.textContent = typesStr;
+          autoFixPillsWrapper.appendChild(s);
       }
     }
     
-    autoFixPillsWrapper.innerHTML = html;
     autoFixLogContainer.style.display = 'flex';
   }
 
@@ -326,11 +396,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentGroup = null;
     let currentTicketKey = '';
     let currentTicketLocale = null;
+    let currentMode = 'publish';
 
     for (let line of lines) {
       if (line.startsWith('[TICKET_KEY:')) {
         currentTicketKey = line.substring(12, line.lastIndexOf(']'));
         currentTicketLocale = null; // Reset locale for each new ticket
+        currentMode = 'publish'; // Reset mode for each new ticket
         continue;
       }
       if (line.startsWith('[TICKET_LOCALE:')) {
@@ -339,15 +411,23 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       let cleanLine = line.trim();
 
+      // State Machine for Publish vs Deactivate modes
+      const upperLine = cleanLine.toUpperCase();
+      if (upperLine.includes('DEACTIVATE')) {
+        currentMode = 'deactivate';
+      } else if (upperLine.includes('PUBLISH') || upperLine.includes('PUBLISHING PATH')) {
+        currentMode = 'publish';
+      }
+
       // Find an AEM URL in this line
       const urlMatch = cleanLine.match(/https?:\/\/[^\s"'<>\(\)\[\]\|]+/);
       if (urlMatch) {
         let cleanUrl = urlMatch[0];
         const isAemUrl = !cleanUrl.includes('wcmmode=') && (
-                         cleanUrl.includes('/content/') || 
-                         cleanUrl.includes('/ui#/aem/') || 
-                         cleanUrl.includes('/assets.html/') || 
-                         cleanUrl.includes('/editor.html/'));
+                          cleanUrl.includes('/content/') || 
+                          cleanUrl.includes('/ui#/aem/') || 
+                          cleanUrl.includes('/assets.html/') || 
+                          cleanUrl.includes('/editor.html/'));
 
         if (isAemUrl) {
           if (currentTicketLocale) {
@@ -376,8 +456,17 @@ document.addEventListener('DOMContentLoaded', () => {
               let cleanPathPart = parts[1].split('?')[0].split('#')[0];
               let folderJcrPath = '/content/' + cleanPathPart;
 
+              let implicitItem = null;
               if (folderJcrPath.endsWith('.html')) {
                 folderJcrPath = folderJcrPath.substring(0, folderJcrPath.length - 5);
+                const lastSlashIdx = folderJcrPath.lastIndexOf('/');
+                if (lastSlashIdx !== -1) {
+                  implicitItem = folderJcrPath.substring(lastSlashIdx + 1);
+                  folderJcrPath = folderJcrPath.substring(0, lastSlashIdx);
+                  
+                  if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Direct Item Extracted' });
+                  else autoFixLog.push({ key: null, type: 'Direct Item Extracted' });
+                }
               }
 
               let normalizedBaseUrl = cleanUrl;
@@ -387,17 +476,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 else autoFixLog.push({ key: null, type: 'Editor URL Converted' });
                 
                 if (folderJcrPath.includes('/content/experience-fragments/')) {
-                  normalizedBaseUrl = `${origin}/ui#/aem/aem/experience-fragments.html${folderJcrPath}`;
+                  normalizedBaseUrl = `${origin}/aem/experience-fragments.html${folderJcrPath}`;
                 } else if (folderJcrPath.includes('/content/dam/')) {
-                  normalizedBaseUrl = `${origin}/ui#/aem/assets.html${folderJcrPath}`;
+                  normalizedBaseUrl = `${origin}/assets.html${folderJcrPath}`;
                 } else if (folderJcrPath.startsWith('/content/')) {
                   normalizedBaseUrl = `${origin}/sites.html${folderJcrPath}`;
                 }
               }
 
-              // Normalize XF URLs for AEMaaCS
-              if (normalizedBaseUrl.includes('/aem/experience-fragments.html') && !normalizedBaseUrl.includes('ui#/aem/')) {
-                normalizedBaseUrl = normalizedBaseUrl.replace('/aem/experience-fragments.html', '/ui#/aem/aem/experience-fragments.html');
+              // Strip /ui#/aem/ from URLs to keep them clean and short for Jira
+              if (normalizedBaseUrl.includes('/ui#/aem/')) {
+                normalizedBaseUrl = normalizedBaseUrl.replace('/ui#/aem/', '/');
               }
 
               // Deduplicate: merge elements if this folder path was already seen
@@ -410,6 +499,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   origin: origin,
                   folderJcrPath: folderJcrPath,
                   category: getCategory(folderJcrPath, cleanUrl),
+                  ticketKey: currentTicketKey,
+                  mode: currentMode,
                   elements: []
                 };
                 results.push(currentGroup);
@@ -486,6 +577,10 @@ document.addEventListener('DOMContentLoaded', () => {
               parentGroup.elements.push(el);
             }
           });
+          
+          if (childGroup.ticketKey) autoFixLog.push({ key: childGroup.ticketKey, type: 'Item URL Unified' });
+          else autoFixLog.push({ key: null, type: 'Item URL Unified' });
+          
           results.splice(i, 1); // Remove the child group since it was merged
         }
       }
@@ -501,33 +596,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Helper to format groups by category hierarchy
   function getFormattedText(data) {
-    const categoriesOrder = ['Assets', 'VDM', 'CF', 'XF', 'Pages'];
-    const formattedCategories = [];
+    const mainLines = ["Publishing Paths\n"];
     
-    categoriesOrder.forEach(category => {
-      const categoryGroups = data.filter(group => group.category === category);
+    const categoriesOrder = [
+      { key: 'Assets', label: 'Assets:' },
+      { key: 'VDM', label: 'VDM Resources:' },
+      { key: 'CF', label: 'CFs:' },
+      { key: 'XF', label: 'XFs:' },
+      { key: 'Pages', label: 'Pages:' }
+    ];
+    
+    // Process Publish Groups
+    const publishGroupsData = data.filter(group => group.mode === 'publish');
+    categoriesOrder.forEach(cat => {
+      const categoryGroups = publishGroupsData.filter(group => group.category === cat.key);
       if (categoryGroups.length > 0) {
-        const categoryLines = [
-          `PUBLISHING PATH - ${category.toUpperCase()}`
-        ];
-        
+        mainLines.push(cat.label);
         categoryGroups.forEach(group => {
-          categoryLines.push("");
-          categoryLines.push(group.baseUrl);
+          mainLines.push(group.baseUrl);
           group.elements.forEach(el => {
-            categoryLines.push(`>>> ${el.name}`);
+            mainLines.push(`>>> ${el.name}`);
           });
+          mainLines.push(""); // empty line after each group
         });
-        
-        formattedCategories.push(categoryLines.join('\n'));
       }
     });
-    return formattedCategories.join('\n\n');
+
+    // Process Deactivate Groups
+    const deactivateGroupsData = data.filter(group => group.mode === 'deactivate');
+    
+    if (deactivateGroupsData.length > 0) {
+      mainLines.push("DEACTIVATE (if needed)\n");
+      categoriesOrder.forEach(cat => {
+        const categoryGroups = deactivateGroupsData.filter(group => group.category === cat.key);
+        if (categoryGroups.length > 0) {
+          mainLines.push(cat.label);
+          categoryGroups.forEach(group => {
+            mainLines.push(group.baseUrl);
+            group.elements.forEach(el => {
+              mainLines.push(`>>> ${el.name}`);
+            });
+            mainLines.push(""); // empty line after each group
+          });
+        }
+      });
+    }
+
+    return mainLines.join('\n').trim();
   }
 
   // Button: Scan Active Jira Tab
   if (btnScanJira) {
     btnScanJira.addEventListener('click', async () => {
+      if (pmListArray.length === 0) {
+        const proceed = await showVmlConfirm(
+          "Configuración Vacía", 
+          "No ingresaste ningún nombre de PM para filtrar. ¿Estás seguro de que querés escanear TODOS los comentarios del ticket?",
+          "SCAN ALL",
+          "CANCEL"
+        );
+        if (!proceed) return;
+      }
+
       try {
         btnScanJira.disabled = true;
         clearJiraStatus();
@@ -683,7 +813,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const origin = tab && tab.url ? new URL(tab.url).origin : '';
             renderAutoFixPills(autoFixLog, origin);
             if (autoFixLog.length > 0) {
-              showJiraStatusHtml(`<strong>Copied to clipboard!</strong>`, false);
+              showJiraStatusBold("Copied to clipboard!", false);
             } else {
               showJiraStatus(`Scraped ticket ${finalIssueKey} & copied to clipboard!`);
             }
@@ -710,6 +840,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!keysStr) return;
       const keys = keysStr.split(',').filter(Boolean);
       if (keys.length === 0) return;
+
+      if (pmListArray.length === 0) {
+        const proceed = await showVmlConfirm(
+          "Configuración Vacía", 
+          "No ingresaste ningún nombre de PM para filtrar. ¿Estás seguro de que querés escanear TODOS los comentarios de TODOS los sub-tasks?",
+          "SCAN ALL",
+          "CANCEL"
+        );
+        if (!proceed) return;
+      }
 
       try {
         btnScanSubtasks.disabled = true;
@@ -870,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const origin = tab && tab.url ? new URL(tab.url).origin : '';
             renderAutoFixPills(autoFixLog, origin);
             if (autoFixLog.length > 0) {
-              showJiraStatusHtml(`<strong>Scraped ${validResults.length} tasks & copied!</strong>`, false);
+              showJiraStatusBold(`Scraped ${validResults.length} tasks & copied!`, false);
             } else {
               showJiraStatus(`Scraped ${validResults.length} active PM subtasks & copied to clipboard!`);
             }

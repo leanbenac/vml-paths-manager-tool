@@ -45,18 +45,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // Mostrar estado de no assets en el popup
   function showNoAssetsPlaceholder() {
     updateAssetStatus('status-empty', 'Not Detected');
-    detectedAssetsList.innerHTML = '';
+    detectedAssetsList.textContent = '';
   }
 
   // Mostrar estado de escaneo en el popup
   function showScanningPlaceholder() {
     updateAssetStatus('status-scanning', 'Scanning...');
-    detectedAssetsList.innerHTML = `
-      <div class="no-assets-placeholder" style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 16px 12px; border: 1px dashed var(--border-accent); border-radius: var(--radius-sm); background: rgba(45, 158, 158, 0.02); text-align: center; width: 100%;">
-        <span class="scanning-spinner" style="display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255, 255, 255, 0.1); border-top-color: var(--accent-light); border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
-        <span style="color: var(--accent-light); font-size: 11px; font-weight: 500; letter-spacing: 0.5px;">Scanning page assets...</span>
-      </div>
-    `;
+    detectedAssetsList.textContent = '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'no-assets-placeholder';
+    wrapper.style.cssText = 'display: flex; align-items: center; justify-content: center; gap: 10px; padding: 16px 12px; border: 1px dashed var(--border-accent); border-radius: var(--radius-sm); background: rgba(45, 158, 158, 0.02); text-align: center; width: 100%;';
+    
+    const spinner = document.createElement('span');
+    spinner.className = 'scanning-spinner';
+    spinner.style.cssText = 'display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255, 255, 255, 0.1); border-top-color: var(--accent-light); border-radius: 50%; animation: spin 0.8s linear infinite;';
+    
+    const textSpan = document.createElement('span');
+    textSpan.style.cssText = 'color: var(--accent-light); font-size: 11px; font-weight: 500; letter-spacing: 0.5px;';
+    textSpan.textContent = 'Scanning page assets...';
+    
+    wrapper.appendChild(spinner);
+    wrapper.appendChild(textSpan);
+    detectedAssetsList.appendChild(wrapper);
   }
 
   // --- 1. GENERAR PATH DE PUBLICACIÓN PRINCIPAL (Pages, CFs y XFs) ---
@@ -294,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderDetectedAssets(assets, tabUrl) {
     updateAssetStatus('status-detected', 'Auto-Detected');
-    detectedAssetsList.innerHTML = '';
+    detectedAssetsList.textContent = '';
     detectedAssetsContainer.style.display = 'block';
 
     const origin = new URL(tabUrl).origin;
@@ -309,15 +319,32 @@ document.addEventListener('DOMContentLoaded', () => {
       // Icono SVG
       const iconSpan = document.createElement('span');
       iconSpan.className = 'detected-asset-icon';
-      iconSpan.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="16" y1="13" x2="8" y2="13"></line>
-          <line x1="16" y1="17" x2="8" y2="17"></line>
-          <polyline points="10 9 9 9 8 9"></polyline>
-        </svg>
-      `;
+      
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z');
+      const poly1 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      poly1.setAttribute('points', '14 2 14 8 20 8');
+      const l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      l1.setAttribute('x1', '16'); l1.setAttribute('y1', '13'); l1.setAttribute('x2', '8'); l1.setAttribute('y2', '13');
+      const l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      l2.setAttribute('x1', '16'); l2.setAttribute('y1', '17'); l2.setAttribute('x2', '8'); l2.setAttribute('y2', '17');
+      const poly2 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      poly2.setAttribute('points', '10 9 9 9 8 9');
+
+      svg.appendChild(path);
+      svg.appendChild(poly1);
+      svg.appendChild(l1);
+      svg.appendChild(l2);
+      svg.appendChild(poly2);
+      iconSpan.appendChild(svg);
 
       const filename = assetPath.split('/').pop();
       const nameSpan = document.createElement('span');
