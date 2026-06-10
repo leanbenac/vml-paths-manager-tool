@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
     validatorInput.value = '';
     validatorFileInput.value = '';
     validatorResultsContainer.style.display = 'none';
-    validatorResultsList.innerHTML = '';
+    validatorResultsList.textContent = '';
     updateValidateButtonState();
     clearStatus();
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render list of results securely without innerHTML
   function renderResults(results) {
-    validatorResultsList.innerHTML = '';
+    validatorResultsList.textContent = '';
     
     let validCount = 0;
     results.forEach(res => {

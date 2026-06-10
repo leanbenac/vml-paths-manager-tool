@@ -21,16 +21,33 @@ document.addEventListener('DOMContentLoaded', () => {
     tooltipEl = document.createElement('div');
     tooltipEl.id = 'infoTooltip';
     tooltipEl.className = 'info-tooltip';
-    tooltipEl.innerHTML = `
-      <div class="tooltip-header">
-        <h4 id="tooltipTitle" class="tooltip-title"></h4>
-      </div>
-      <p id="tooltipDesc" class="tooltip-desc"></p>
-      <div class="tooltip-validations-section">
-        <span class="tooltip-section-label">Validation Rules:</span>
-        <ul id="tooltipValidations" class="tooltip-validations-list"></ul>
-      </div>
-    `;
+    const header = document.createElement('div');
+    header.className = 'tooltip-header';
+    const title = document.createElement('h4');
+    title.id = 'tooltipTitle';
+    title.className = 'tooltip-title';
+    header.appendChild(title);
+
+    const desc = document.createElement('p');
+    desc.id = 'tooltipDesc';
+    desc.className = 'tooltip-desc';
+
+    const valSection = document.createElement('div');
+    valSection.className = 'tooltip-validations-section';
+    const valLabel = document.createElement('span');
+    valLabel.className = 'tooltip-section-label';
+    valLabel.textContent = 'Validation Rules:';
+    const valList = document.createElement('ul');
+    valList.id = 'tooltipValidations';
+    valList.className = 'tooltip-validations-list';
+    
+    valSection.appendChild(valLabel);
+    valSection.appendChild(valList);
+
+    tooltipEl.appendChild(header);
+    tooltipEl.appendChild(desc);
+    tooltipEl.appendChild(valSection);
+
     document.body.appendChild(tooltipEl);
   }
 
@@ -54,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tooltipTitle.textContent = info.title;
     tooltipDesc.textContent = info.description;
     
-    tooltipValidations.innerHTML = '';
+    tooltipValidations.textContent = '';
     if (Array.isArray(info.validations)) {
       info.validations.forEach(val => {
         const li = document.createElement('li');
