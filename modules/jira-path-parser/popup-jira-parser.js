@@ -47,26 +47,44 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const uniqueLogs = [];
-    const seen = new Set();
+    const groupedLogs = {};
     for (const log of logs) {
-      const id = log.key + log.type;
-      if (!seen.has(id)) {
-          seen.add(id);
-          uniqueLogs.push(log);
+      const key = log.key || 'UNKNOWN';
+      if (!groupedLogs[key]) {
+        groupedLogs[key] = { types: new Set(), rawTypes: [] };
+      }
+      
+      let shortType = log.type;
+      if (log.type.includes('Locale Fixed')) {
+        const locale = log.type.split('to ')[1];
+        shortType = `Locale \u2192 ${locale}`;
+      } else if (log.type === 'Editor URL Converted') {
+        shortType = 'Editor URL';
+      } else if (log.type === 'Item URL Fixed') {
+        shortType = 'Item URL';
+      } else if (log.type === 'Editor URL Ignored') {
+        shortType = 'Editor Ignored';
+      }
+      
+      if (!groupedLogs[key].types.has(shortType)) {
+        groupedLogs[key].types.add(shortType);
+        groupedLogs[key].rawTypes.push(log.type);
       }
     }
 
     let html = '';
-    for (const log of uniqueLogs) {
-      if (log.key && origin) {
-          html += `<a href="${origin}/browse/${log.key}" target="_blank" class="autofix-pill-link" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; text-decoration: none; border: 1px solid rgba(255, 171, 0, 0.3); font-size: 10px; transition: background 0.2s;">
-            <span style="font-weight: 700;">${log.key}</span>
-            <span style="opacity:0.7; font-size: 9px; text-transform: uppercase;">${log.type}</span>
+    for (const [key, group] of Object.entries(groupedLogs)) {
+      const typesStr = Array.from(group.types).join(' &bull; ');
+      const tooltip = `Auto Fixes Applied:\n- ${group.rawTypes.join('\n- ')}`;
+      
+      if (key !== 'UNKNOWN' && origin) {
+          html += `<a href="${origin}/browse/${key}" target="_blank" title="${tooltip}" class="autofix-pill-link" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; text-decoration: none; border: 1px solid rgba(255, 171, 0, 0.3); font-size: 10px; transition: background 0.2s;">
+            <span style="font-weight: 700;">${key}</span>
+            <span style="opacity:0.7; font-size: 9px; text-transform: uppercase;">${typesStr}</span>
           </a>`;
       } else {
-          html += `<span style="display: inline-flex; align-items: center; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; font-size: 10px; border: 1px solid rgba(255, 171, 0, 0.3);">
-            ${log.type}
+          html += `<span title="${tooltip}" style="display: inline-flex; align-items: center; padding: 4px 8px; background: rgba(255, 171, 0, 0.1); border-radius: 4px; color: #ffab00; font-size: 10px; border: 1px solid rgba(255, 171, 0, 0.3);">
+            ${typesStr}
           </span>`;
       }
     }
@@ -238,6 +256,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- 1. CORE EXTRACTION ALGORITHM ---
+  function detectLocaleFromSummary(summary) {
+    if (!summary) return null;
+    const s = summary.toUpperCase();
+    const hasCA = /\bCA\b/.test(s);
+    const hasUS = /\bUS\b/.test(s);
+    if (hasCA && !hasUS) return 'en_ca';
+    if (hasUS && !hasCA) return 'en_us';
+    return null;
+  }
   function htmlToPlainText(html) {
     if (!html.includes('<') && !html.includes('&')) {
       return html;
@@ -259,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function hasAemUrls(text) {
     if (!text) return false;
-    const matches = text.match(/https?:\/\/[^\s"'<>\(\)\[\]]+/g) || [];
+    const matches = text.match(/https?:\/\/[^\s"'<>\(\)\[\]\|]+/g) || [];
     return matches.some(url => {
       if (url.includes('wcmmode=')) return false;
       return url.includes('/content/') || 
@@ -298,18 +325,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const results = [];
     let currentGroup = null;
     let currentTicketKey = '';
+    let currentTicketLocale = null;
 
     for (let line of lines) {
       if (line.startsWith('[TICKET_KEY:')) {
         currentTicketKey = line.substring(12, line.lastIndexOf(']'));
+        currentTicketLocale = null; // Reset locale for each new ticket
+        continue;
+      }
+      if (line.startsWith('[TICKET_LOCALE:')) {
+        currentTicketLocale = line.substring(15, line.lastIndexOf(']'));
         continue;
       }
       let cleanLine = line.trim();
 
       // Find an AEM URL in this line
-      const urlMatch = cleanLine.match(/https?:\/\/[^\s"'<>\(\)\[\]]+/);
+      const urlMatch = cleanLine.match(/https?:\/\/[^\s"'<>\(\)\[\]\|]+/);
       if (urlMatch) {
-        const cleanUrl = urlMatch[0];
+        let cleanUrl = urlMatch[0];
         const isAemUrl = !cleanUrl.includes('wcmmode=') && (
                          cleanUrl.includes('/content/') || 
                          cleanUrl.includes('/ui#/aem/') || 
@@ -317,6 +350,21 @@ document.addEventListener('DOMContentLoaded', () => {
                          cleanUrl.includes('/editor.html/'));
 
         if (isAemUrl) {
+          if (currentTicketLocale) {
+            const localeMatch = cleanUrl.match(/\/(en_us|en_ca|fr_ca|es_us)\//i);
+            if (localeMatch) {
+              const urlLocale = localeMatch[1].toLowerCase();
+              if (urlLocale === 'en_us' && currentTicketLocale === 'en_ca') {
+                cleanUrl = cleanUrl.replace(/\/(en_us)\//i, '/en_ca/');
+                if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Locale Fixed to en_ca' });
+                else autoFixLog.push({ key: null, type: 'Locale Fixed to en_ca' });
+              } else if (urlLocale === 'en_ca' && currentTicketLocale === 'en_us') {
+                cleanUrl = cleanUrl.replace(/\/(en_ca)\//i, '/en_us/');
+                if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Locale Fixed to en_us' });
+                else autoFixLog.push({ key: null, type: 'Locale Fixed to en_us' });
+              }
+            }
+          }
           try {
             const urlObj = new URL(cleanUrl);
             const origin = urlObj.origin;
@@ -332,15 +380,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 folderJcrPath = folderJcrPath.substring(0, folderJcrPath.length - 5);
               }
 
+              let normalizedBaseUrl = cleanUrl;
+
               if (cleanUrl.includes('editor.html')) {
-                if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Editor URL Ignored' });
-                else autoFixLog.push({ key: null, type: 'Editor URL Ignored' });
-                currentGroup = null;
-                continue;
+                if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Editor URL Converted' });
+                else autoFixLog.push({ key: null, type: 'Editor URL Converted' });
+                
+                if (folderJcrPath.includes('/content/experience-fragments/')) {
+                  normalizedBaseUrl = `${origin}/ui#/aem/aem/experience-fragments.html${folderJcrPath}`;
+                } else if (folderJcrPath.includes('/content/dam/')) {
+                  normalizedBaseUrl = `${origin}/ui#/aem/assets.html${folderJcrPath}`;
+                } else if (folderJcrPath.startsWith('/content/')) {
+                  normalizedBaseUrl = `${origin}/sites.html${folderJcrPath}`;
+                }
               }
 
               // Normalize XF URLs for AEMaaCS
-              let normalizedBaseUrl = cleanUrl;
               if (normalizedBaseUrl.includes('/aem/experience-fragments.html') && !normalizedBaseUrl.includes('ui#/aem/')) {
                 normalizedBaseUrl = normalizedBaseUrl.replace('/aem/experience-fragments.html', '/ui#/aem/aem/experience-fragments.html');
               }
@@ -380,6 +435,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Item URL Fixed' });
             else autoFixLog.push({ key: null, type: 'Item URL Fixed' });
+
+            const existingMatch = results.find(g => g !== currentGroup && g.folderJcrPath === currentGroup.folderJcrPath);
+            if (existingMatch) {
+              existingMatch.elements.push(...currentGroup.elements);
+              const idx = results.indexOf(currentGroup);
+              if (idx !== -1) results.splice(idx, 1);
+              currentGroup = existingMatch;
+            }
           }
 
           const childJcrPath = `${currentGroup.folderJcrPath}/${elementName}`;
@@ -406,7 +469,30 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    return results.filter(group => group.elements.length > 0);
+    // Post-processing: Merge item URL groups into parent groups
+    // Handles case where a user pastes .../models/tremor.html and then sibling elements like >>> active
+    for (let i = results.length - 1; i >= 0; i--) {
+      const childGroup = results[i];
+      const lastSlashIdx = childGroup.folderJcrPath.lastIndexOf('/');
+      if (lastSlashIdx !== -1) {
+        const parentPath = childGroup.folderJcrPath.substring(0, lastSlashIdx);
+        const itemName = childGroup.folderJcrPath.substring(lastSlashIdx + 1);
+        
+        const parentGroup = results.find((g, idx) => idx !== i && g.folderJcrPath === parentPath && g.elements.some(e => e.name.toLowerCase() === itemName.toLowerCase()));
+        if (parentGroup) {
+          // Merge elements from child to parent
+          childGroup.elements.forEach(el => {
+            if (!parentGroup.elements.some(e => e.name.toLowerCase() === el.name.toLowerCase())) {
+              parentGroup.elements.push(el);
+            }
+          });
+          results.splice(i, 1); // Remove the child group since it was merged
+        }
+      }
+    }
+
+    // Remove empty groups (those that have no extracted items underneath them)
+    return results.filter(r => r.elements.length > 0);
   }
 
   // --- 2. FORMAT AND EXPORT RESULTS ---
@@ -476,16 +562,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Try to fetch details via Jira REST API first
         try {
-          const res = await fetch(`${baseUrl}/rest/api/2/issue/${issueKey}?fields=description,comment,subtasks`);
+          const res = await fetch(`${baseUrl}/rest/api/2/issue/${issueKey}?fields=summary,description,comment,subtasks,parent`);
           if (res.ok) {
             const json = await res.json();
             const desc = json.fields?.description || '';
+            let summary = json.fields?.summary || '';
+            
+            if (json.fields?.parent?.key) {
+               try {
+                 const pRes = await fetch(`${baseUrl}/rest/api/2/issue/${json.fields.parent.key}?fields=summary`);
+                 if (pRes.ok) {
+                   const pJson = await pRes.json();
+                   if (pJson.fields?.summary) summary += ' ' + pJson.fields.summary;
+                 }
+               } catch(e) {}
+            }
+            
             const commentsList = (json.fields?.comment?.comments || []).map(c => c.body || '');
             subtasksList = (json.fields?.subtasks || []).map(s => s.key).filter(Boolean);
             
             responseData = {
               success: true,
               issueKey: issueKey,
+              summary: summary,
               description: desc,
               comments: commentsList,
               subtasks: subtasksList
@@ -507,6 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
               responseData = {
                 success: true,
                 issueKey: domResponse.issueKey || issueKey,
+                summary: domResponse.summary || '',
                 description: domResponse.description || '',
                 comments: domResponse.comments || [],
                 subtasks: domResponse.subtasks || []
@@ -543,10 +643,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Resolve issue key safely
         const finalIssueKey = responseData.issueKey || issueKey;
+        const summaryStr = responseData.summary || '';
+        const locale = detectLocaleFromSummary(summaryStr);
 
         // Parse and process
         autoFixLog = [];
-        const data = extractAEMData(`[TICKET_KEY:${finalIssueKey}]\n` + chosenText);
+        let prependStr = `[TICKET_KEY:${finalIssueKey}]\n`;
+        if (locale) prependStr += `[TICKET_LOCALE:${locale}]\n`;
+        const data = extractAEMData(prependStr + chosenText);
         currentParsedData = data;
 
         // Update active ticket info badge
@@ -570,7 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Save to cache
-        saveScanCache(tab.url, finalIssueKey, data, responseData.subtasks);
+        saveScanCache(tab.url, finalIssueKey, data, responseData.subtasks, autoFixLog);
 
         // Auto-copy to clipboard
         const text = getFormattedText(data);
@@ -623,6 +727,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const baseUrl = new URL(tab.url).origin;
         const fetchedTexts = [];
+        
+        // Fetch parent ticket summary to inherit locale if subtasks don't have it
+        let parentLocale = null;
+        try {
+          const parentKey = getJiraKeyFromUrl(tab.url);
+          if (parentKey) {
+            const parentRes = await fetch(`${baseUrl}/rest/api/2/issue/${parentKey}?fields=summary`);
+            if (parentRes.ok) {
+              const pJson = await parentRes.json();
+              parentLocale = detectLocaleFromSummary(pJson.fields?.summary || '');
+            }
+          }
+        } catch (e) {
+          console.warn("Could not fetch parent summary", e);
+        }
 
         // Concurrency queue (batch size of 5)
         const batchSize = 5;
@@ -630,7 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const batchKeys = keys.slice(i, i + batchSize);
           const promises = batchKeys.map(async (key) => {
             try {
-              const res = await fetch(`${baseUrl}/rest/api/2/issue/${key}?fields=description,comment,status,assignee`);
+              const res = await fetch(`${baseUrl}/rest/api/2/issue/${key}?fields=summary,description,comment,status,assignee`);
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
               const json = await res.json();
               
@@ -670,7 +789,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 chosenText = desc;
                 console.log(`Subtask ${key}: No comments with publish paths found. Scanning the description.`);
               }
-              return { key: key, text: chosenText };
+              const summary = json.fields?.summary || '';
+              const locale = detectLocaleFromSummary(summary) || parentLocale;
+              return { key: key, text: chosenText, locale: locale };
             } catch (err) {
               console.warn(`Failed to fetch details for subtask ${key}:`, err);
               return null;
@@ -690,14 +811,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const backupLog = [...autoFixLog];
         for (const res of validResults) {
           autoFixLog = []; // clear to prevent polluting the main log with duplicates
-          const singleData = extractAEMData(res.text);
+          let prependStr = `[TICKET_KEY:${res.key}]\n`;
+          if (res.locale) prependStr += `[TICKET_LOCALE:${res.locale}]\n`;
+          const singleData = extractAEMData(prependStr + res.text);
           if (singleData.length > 0) {
             saveScanCache(tab.url, res.key, singleData, [], autoFixLog);
           }
         }
         autoFixLog = backupLog; // restore
 
-        const consolidatedText = validResults.map(r => `[TICKET_KEY:${r.key}]\n${r.text}`).join('\n\n');
+        const consolidatedText = validResults.map(r => {
+           let header = `[TICKET_KEY:${r.key}]\n`;
+           if (r.locale) header += `[TICKET_LOCALE:${r.locale}]\n`;
+           return header + r.text;
+        }).join('\n\n');
 
         // Parse and process
         autoFixLog = [];

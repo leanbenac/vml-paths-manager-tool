@@ -24,6 +24,18 @@ function getJiraKey() {
   return '';
 }
 
+function scrapeSummary() {
+  const summaryVal = document.getElementById('summary-val');
+  if (summaryVal && summaryVal.textContent.trim()) {
+    return summaryVal.textContent.trim();
+  }
+  const cloudTitle = document.querySelector('h1[data-test-id="issue.views.issue-base.foundation.summary.heading"]');
+  if (cloudTitle && cloudTitle.textContent.trim()) {
+    return cloudTitle.textContent.trim();
+  }
+  return '';
+}
+
 function scrapeDescription() {
   let texts = [];
 
@@ -240,6 +252,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getJiraIssueDetails') {
     try {
       const issueKey = getJiraKey();
+      const summary = scrapeSummary();
       const description = scrapeDescription();
       const commentsArray = scrapeComments();
       const linkedIssues = detectLinkedIssues();
@@ -248,6 +261,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({
         success: true,
         issueKey: issueKey,
+        summary: summary,
         description: description,
         comments: commentsArray,
         linkedIssues: linkedIssues,
