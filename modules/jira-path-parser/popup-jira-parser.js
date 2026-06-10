@@ -648,16 +648,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Button: Scan Active Jira Tab
   if (btnScanJira) {
     btnScanJira.addEventListener('click', async () => {
-      if (pmListArray.length === 0) {
-        const proceed = await showVmlConfirm(
-          "Configuración Vacía", 
-          "No ingresaste ningún nombre de PM para filtrar. ¿Estás seguro de que querés escanear TODOS los comentarios del ticket?",
-          "SCAN ALL",
-          "CANCEL"
-        );
-        if (!proceed) return;
-      }
-
       try {
         btnScanJira.disabled = true;
         clearJiraStatus();
@@ -843,8 +833,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (pmListArray.length === 0) {
         const proceed = await showVmlConfirm(
-          "Configuración Vacía", 
-          "No ingresaste ningún nombre de PM para filtrar. ¿Estás seguro de que querés escanear TODOS los comentarios de TODOS los sub-tasks?",
+          "NO PM CONFIGURED", 
+          "You haven't configured any Project Manager names to filter by. Are you sure you want to scan ALL comments across ALL sub-tasks?",
           "SCAN ALL",
           "CANCEL"
         );

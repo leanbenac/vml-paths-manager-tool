@@ -15,7 +15,7 @@ const MODULES_DOCUMENTATION = {
   },
   jiraPathParser: {
     title: "Jira AEM Path Parser",
-    description: "Extract AEM folder URLs and sub-items (starting with >> or >>>) from Jira descriptions and comments.",
+    description: "Extract AEM folder URLs and sub-items (starting with >) from Jira descriptions and comments.",
     validations: [
       "Press 'SCAN ACTIVE JIRA TICKET' when on a Jira ticket page to scrape automatically.",
       "Scans subtasks in batch mode when available.",
