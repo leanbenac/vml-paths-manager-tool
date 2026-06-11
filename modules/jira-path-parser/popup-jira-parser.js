@@ -184,6 +184,128 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize subtasks button state
   updateSubtasksButton([]);
 
+  // --- Batch Receipt Logic ---
+  function addTicketsToBatch(ticketItems) {
+    if (!ticketItems || ticketItems.length === 0) return;
+    chrome.storage.local.get(['scanned_tickets_batch'], (res) => {
+      let batch = res.scanned_tickets_batch || [];
+      let added = false;
+      const itemsArray = Array.isArray(ticketItems) ? ticketItems : [ticketItems];
+      
+      itemsArray.forEach(item => {
+        if (!item) return;
+        const key = typeof item === 'object' ? item.key : item;
+        const exists = batch.some(b => (typeof b === 'object' ? b.key : b) === key);
+        
+        if (!exists) {
+          batch.push(typeof item === 'object' ? item : { key: item, url: '' });
+          added = true;
+        }
+      });
+
+      if (added) {
+        chrome.storage.local.set({ 'scanned_tickets_batch': batch }, () => {
+          renderBatchReceipt(batch);
+        });
+      } else {
+        renderBatchReceipt(batch);
+      }
+    });
+  }
+
+  function renderBatchReceipt(batch) {
+    const container = document.getElementById('batchReceiptContainer');
+    const badge = document.getElementById('batchCountBadge');
+    const list = document.getElementById('batchTicketList');
+    
+    if (!container || !badge || !list) return;
+
+    if (batch && batch.length > 0) {
+      container.style.display = 'block';
+      badge.textContent = batch.length;
+      list.textContent = ''; // clear
+      batch.forEach(b => {
+        const key = typeof b === 'object' ? b.key : b;
+        const url = typeof b === 'object' ? b.url : '';
+        
+        const div = document.createElement('div');
+        div.textContent = '- ';
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.style.color = 'var(--accent-light)';
+          a.style.textDecoration = 'none';
+          a.textContent = key;
+          div.appendChild(a);
+        } else {
+          div.appendChild(document.createTextNode(key));
+        }
+        list.appendChild(div);
+      });
+    } else {
+      container.style.display = 'none';
+      badge.textContent = '0';
+      list.textContent = 'No tickets scanned yet.';
+    }
+  }
+
+  function loadBatchReceipt() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['scanned_tickets_batch'], (res) => {
+        renderBatchReceipt(res.scanned_tickets_batch || []);
+      });
+    }
+  }
+
+  const btnToggleBatchReceipt = document.getElementById('btnToggleBatchReceipt');
+  const batchReceiptContent = document.getElementById('batchReceiptContent');
+  const batchReceiptChevron = document.getElementById('batchReceiptChevron');
+  const btnCopyBatch = document.getElementById('btnCopyBatch');
+  const btnClearBatch = document.getElementById('btnClearBatch');
+
+  if (btnToggleBatchReceipt && batchReceiptContent && batchReceiptChevron) {
+    btnToggleBatchReceipt.addEventListener('click', () => {
+      const isVisible = batchReceiptContent.style.display === 'block';
+      batchReceiptContent.style.display = isVisible ? 'none' : 'block';
+      batchReceiptChevron.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(180deg)';
+    });
+  }
+
+  if (btnCopyBatch) {
+    btnCopyBatch.addEventListener('click', () => {
+      chrome.storage.local.get(['scanned_tickets_batch'], (res) => {
+        const batch = res.scanned_tickets_batch || [];
+        if (batch.length === 0) return;
+        
+        const text = "Included Tickets:\n" + batch.map(b => {
+          return `- ${typeof b === 'object' ? b.key : b}`;
+        }).join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+          const originalText = btnCopyBatch.textContent;
+          btnCopyBatch.textContent = "✔ COPIED";
+          btnCopyBatch.style.background = "rgba(74, 222, 128, 0.15)";
+          btnCopyBatch.style.color = "var(--accent-green)";
+          setTimeout(() => {
+            btnCopyBatch.textContent = originalText;
+            btnCopyBatch.style.background = "";
+            btnCopyBatch.style.color = "";
+          }, 1500);
+        });
+      });
+    });
+  }
+
+  if (btnClearBatch) {
+    btnClearBatch.addEventListener('click', () => {
+      chrome.storage.local.set({ 'scanned_tickets_batch': [] }, () => {
+        renderBatchReceipt([]);
+        if (batchReceiptContent) batchReceiptContent.style.display = 'none';
+        if (batchReceiptChevron) batchReceiptChevron.style.transform = 'rotate(0deg)';
+      });
+    });
+  }
+
   // --- CACHE MANAGEMENT ---
   function saveScanCache(url, issueKey, data, subtasks, fixLog) {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -291,6 +413,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnSaveSettings && inputPmList) {
+    inputPmList.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        btnSaveSettings.click();
+      }
+    });
+
     btnSaveSettings.addEventListener('click', () => {
       const rawStr = inputPmList.value || '';
       const listStr = formatPmListNames(rawStr);
@@ -298,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputPmList.value = listStr;
       }
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.set({ pmList: listStr }, () => {
+        chrome.storage.local.set({ pmList: listStr, scanCache: null }, () => {
           showJiraStatus("Configuration saved successfully!");
           pmListArray = listStr.split(',').map(name => name.trim().toLowerCase()).filter(Boolean);
           if (pmSettingsPanel) {
@@ -832,6 +961,8 @@ document.addEventListener('DOMContentLoaded', () => {
           .then(() => {
             const origin = tab && tab.url ? new URL(tab.url).origin : '';
             renderAutoFixPills(autoFixLog, origin);
+            const baseUrl = tab && tab.url ? new URL(tab.url).origin : '';
+            addTicketsToBatch({ key: finalIssueKey, url: baseUrl ? `${baseUrl}/browse/${finalIssueKey}` : '' });
             if (autoFixLog.length > 0) {
               showJiraStatusBold("Copied to clipboard!", false);
             } else {
@@ -925,9 +1056,23 @@ document.addEventListener('DOMContentLoaded', () => {
               let isPM = true;
               const assigneeName = json.fields?.assignee?.name || '';
               const assigneeDisplayName = json.fields?.assignee?.displayName || '';
+              const assigneeEmail = json.fields?.assignee?.emailAddress || '';
+              
               if (pmListArray.length > 0) {
-                isPM = pmListArray.includes(assigneeName.toLowerCase().trim()) || 
-                       pmListArray.includes(assigneeDisplayName.toLowerCase().trim());
+                const lowerName = assigneeName.toLowerCase();
+                const lowerDisplayName = assigneeDisplayName.toLowerCase();
+                const lowerEmail = assigneeEmail.toLowerCase();
+                
+                isPM = pmListArray.some(pm => {
+                  // Split the configured PM name into words (e.g. "Alison Zora" -> ["alison", "zora"])
+                  const parts = pm.split(/\s+/).filter(Boolean);
+                  // Ensure EVERY part is found somewhere in the assignee's details
+                  return parts.every(part => 
+                    lowerName.includes(part) || 
+                    lowerDisplayName.includes(part) || 
+                    lowerEmail.includes(part)
+                  );
+                });
               }
               
               if (!isPM) {
@@ -1032,6 +1177,8 @@ document.addEventListener('DOMContentLoaded', () => {
           .then(() => {
             const origin = tab && tab.url ? new URL(tab.url).origin : '';
             renderAutoFixPills(autoFixLog, origin);
+            const baseUrl = tab && tab.url ? new URL(tab.url).origin : '';
+            addTicketsToBatch(validResults.map(r => ({ key: r.key, url: baseUrl ? `${baseUrl}/browse/${r.key}` : '' })));
             if (autoFixLog.length > 0) {
               showJiraStatusBold(`Scraped ${validResults.length} tasks & copied!`, false);
             } else {
@@ -1196,5 +1343,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  loadBatchReceipt();
   checkActiveTab();
 });
