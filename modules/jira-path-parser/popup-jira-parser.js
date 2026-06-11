@@ -403,6 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTicketKey = line.substring(12, line.lastIndexOf(']'));
         currentTicketLocale = null; // Reset locale for each new ticket
         currentMode = 'publish'; // Reset mode for each new ticket
+        currentGroup = null; // Prevent bleeding across tickets
         continue;
       }
       if (line.startsWith('[TICKET_LOCALE:')) {
@@ -414,9 +415,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // State Machine for Publish vs Deactivate modes
       const upperLine = cleanLine.toUpperCase();
       if (upperLine.includes('DEACTIVATE')) {
-        currentMode = 'deactivate';
+        if (currentMode !== 'deactivate') {
+          currentMode = 'deactivate';
+          currentGroup = null;
+        }
       } else if (upperLine.includes('PUBLISH') || upperLine.includes('PUBLISHING PATH')) {
-        currentMode = 'publish';
+        if (currentMode !== 'publish') {
+          currentMode = 'publish';
+          currentGroup = null;
+        }
       }
 
       // Find an AEM URL in this line
@@ -489,8 +496,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 normalizedBaseUrl = normalizedBaseUrl.replace('/ui#/aem/', '/');
               }
 
-              // Deduplicate: merge elements if this folder path was already seen
-              let existingGroup = results.find(g => g.folderJcrPath === folderJcrPath);
+              // Deduplicate: merge elements if this folder path was already seen in the same mode
+              let existingGroup = results.find(g => g.folderJcrPath === folderJcrPath && g.mode === currentMode);
               if (existingGroup) {
                 currentGroup = existingGroup;
               } else {
@@ -527,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Item URL Fixed' });
             else autoFixLog.push({ key: null, type: 'Item URL Fixed' });
 
-            const existingMatch = results.find(g => g !== currentGroup && g.folderJcrPath === currentGroup.folderJcrPath);
+            const existingMatch = results.find(g => g !== currentGroup && g.folderJcrPath === currentGroup.folderJcrPath && g.mode === currentGroup.mode);
             if (existingMatch) {
               existingMatch.elements.push(...currentGroup.elements);
               const idx = results.indexOf(currentGroup);
@@ -569,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const parentPath = childGroup.folderJcrPath.substring(0, lastSlashIdx);
         const itemName = childGroup.folderJcrPath.substring(lastSlashIdx + 1);
         
-        const parentGroup = results.find((g, idx) => idx !== i && g.folderJcrPath === parentPath && g.elements.some(e => e.name.toLowerCase() === itemName.toLowerCase()));
+        const parentGroup = results.find((g, idx) => idx !== i && g.folderJcrPath === parentPath && g.mode === childGroup.mode && g.elements.some(e => e.name.toLowerCase() === itemName.toLowerCase()));
         if (parentGroup) {
           // Merge elements from child to parent
           childGroup.elements.forEach(el => {
@@ -583,6 +590,24 @@ document.addEventListener('DOMContentLoaded', () => {
           
           results.splice(i, 1); // Remove the child group since it was merged
         }
+      }
+    }
+
+    // Cross-mode deduplication: If an item exists in DEACTIVATE, remove it from PUBLISH
+    const deactivateGroups = results.filter(g => g.mode === 'deactivate');
+    const publishGroups = results.filter(g => g.mode === 'publish');
+
+    for (const dGroup of deactivateGroups) {
+      const pGroup = publishGroups.find(p => p.folderJcrPath === dGroup.folderJcrPath);
+      if (pGroup) {
+        dGroup.elements.forEach(dItem => {
+          const pItemIndex = pGroup.elements.findIndex(pItem => pItem.name.toLowerCase() === dItem.name.toLowerCase());
+          if (pItemIndex !== -1) {
+            // Keep the item in both lists, but show a warning pill so the user can verify with the PM
+            if (pGroup.ticketKey) autoFixLog.push({ key: pGroup.ticketKey, type: '⚠️ Conflict: Item in both Publish and Deactivate' });
+            else autoFixLog.push({ key: null, type: '⚠️ Conflict: Item in both Publish and Deactivate' });
+          }
+        });
       }
     }
 
@@ -626,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const deactivateGroupsData = data.filter(group => group.mode === 'deactivate');
     
     if (deactivateGroupsData.length > 0) {
-      mainLines.push("DEACTIVATE (if needed)\n");
+      mainLines.push("DEACTIVATE\n");
       categoriesOrder.forEach(cat => {
         const categoryGroups = deactivateGroupsData.filter(group => group.category === cat.key);
         if (categoryGroups.length > 0) {
@@ -682,7 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Try to fetch details via Jira REST API first
         try {
-          const res = await fetch(`${baseUrl}/rest/api/2/issue/${issueKey}?fields=summary,description,comment,subtasks,parent`);
+          const res = await fetch(`${baseUrl}/rest/api/2/issue/${issueKey}?fields=summary,description,comment,subtasks,parent&_=${Date.now()}`, { cache: 'no-store' });
           if (res.ok) {
             const json = await res.json();
             const desc = json.fields?.description || '';
@@ -690,7 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (json.fields?.parent?.key) {
                try {
-                 const pRes = await fetch(`${baseUrl}/rest/api/2/issue/${json.fields.parent.key}?fields=summary`);
+                 const pRes = await fetch(`${baseUrl}/rest/api/2/issue/${json.fields.parent.key}?fields=summary&_=${Date.now()}`, { cache: 'no-store' });
                  if (pRes.ok) {
                    const pJson = await pRes.json();
                    if (pJson.fields?.summary) summary += ' ' + pJson.fields.summary;
@@ -756,14 +781,15 @@ document.addEventListener('DOMContentLoaded', () => {
             break;
           }
         }
+        const summaryStr = responseData.summary || '';
         if (!chosenText) {
-          chosenText = desc;
+          chosenText = summaryStr + '\n' + desc;
           console.log(`Active Jira Ticket: No comments with publish paths found. Scanning the description.`);
+        } else {
+          chosenText = summaryStr + '\n' + chosenText;
         }
-
         // Resolve issue key safely
         const finalIssueKey = responseData.issueKey || issueKey;
-        const summaryStr = responseData.summary || '';
         const locale = detectLocaleFromSummary(summaryStr);
 
         // Parse and process
@@ -863,7 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const parentKey = getJiraKeyFromUrl(tab.url);
           if (parentKey) {
-            const parentRes = await fetch(`${baseUrl}/rest/api/2/issue/${parentKey}?fields=summary`);
+            const parentRes = await fetch(`${baseUrl}/rest/api/2/issue/${parentKey}?fields=summary&_=${Date.now()}`, { cache: 'no-store' });
             if (parentRes.ok) {
               const pJson = await parentRes.json();
               parentLocale = detectLocaleFromSummary(pJson.fields?.summary || '');
@@ -879,14 +905,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const batchKeys = keys.slice(i, i + batchSize);
           const promises = batchKeys.map(async (key) => {
             try {
-              const res = await fetch(`${baseUrl}/rest/api/2/issue/${key}?fields=summary,description,comment,status,assignee`);
+              const res = await fetch(`${baseUrl}/rest/api/2/issue/${key}?fields=summary,description,comment,status,assignee&_=${Date.now()}`, { cache: 'no-store' });
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
               const json = await res.json();
               
-              // 1. Filter by Status (must be "In Progress" or "Open")
+              // 1. Filter by Status (skip completed/closed tickets)
               const statusName = (json.fields?.status?.name || '').toLowerCase().trim();
-              if (statusName !== 'in progress' && statusName !== 'open') {
-                console.log(`Skipping subtask ${key} because status is "${statusName}" (not "In Progress" or "Open")`);
+              const skipStatuses = ['done', 'closed', 'resolved', 'canceled', 'cancelled', 'rechazado'];
+              if (skipStatuses.includes(statusName)) {
+                console.log(`Skipping subtask ${key} because status is "${statusName}"`);
                 return '';
               }
 
@@ -915,11 +942,13 @@ document.addEventListener('DOMContentLoaded', () => {
                   break;
                 }
               }
-              if (!chosenText) {
-                chosenText = desc;
-                console.log(`Subtask ${key}: No comments with publish paths found. Scanning the description.`);
-              }
               const summary = json.fields?.summary || '';
+              if (!chosenText) {
+                chosenText = summary + '\n' + desc;
+                console.log(`Subtask ${key}: No comments with publish paths found. Scanning the description.`);
+              } else {
+                chosenText = summary + '\n' + chosenText;
+              }
               const locale = detectLocaleFromSummary(summary) || parentLocale;
               return { key: key, text: chosenText, locale: locale };
             } catch (err) {
