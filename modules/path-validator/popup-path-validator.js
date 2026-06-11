@@ -228,33 +228,176 @@ document.addEventListener('DOMContentLoaded', () => {
     validatorFileInput.click();
   });
 
-  validatorFileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  validatorFileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      validatorInput.value = event.target.result;
-      updateValidateButtonState();
-      saveValidatorCache(event.target.result, null);
-      
-      // Attempt preliminary path counting
-      const parsed = parsePathsFromText(event.target.result);
-      if (parsed.length > 0) {
-        showStatus(`Loaded file successfully! Detected ${parsed.length} potential paths.`, 'info');
-      } else {
-        showStatus("Loaded file successfully, but no valid JCR paths were detected.", 'error');
+    let combinedText = validatorInput.value.trim();
+    if (combinedText) combinedText += '\n\n';
+
+    try {
+      for (const file of files) {
+        const text = await file.text();
+        combinedText += text + '\n\n';
       }
       
-      // Reset input value to allow uploading same file again
-      validatorFileInput.value = '';
-    };
-    reader.onerror = () => {
-      showStatus("Failed to read the selected file.", 'error');
-      validatorFileInput.value = '';
-    };
-    reader.readAsText(file);
+      validatorInput.value = combinedText.trim();
+      updateValidateButtonState();
+      saveValidatorCache(validatorInput.value, null);
+      
+      // Attempt preliminary path counting
+      const parsed = parsePathsFromText(validatorInput.value);
+      if (parsed.length > 0) {
+        showStatus(`Loaded ${files.length} file(s) successfully! Detected ${parsed.length} potential paths.`, 'info');
+      } else {
+        showStatus("Loaded file(s) successfully, but no valid JCR paths were detected.", 'error');
+      }
+    } catch (err) {
+      showStatus("Failed to read the selected files.", 'error');
+    }
+    
+    // Reset input value to allow uploading same file again
+    validatorFileInput.value = '';
   });
+
+  // Clean & Merge Button with Micro-Animations
+  const btnCleanMerge = document.getElementById('btnCleanMerge');
+  if (btnCleanMerge) {
+    btnCleanMerge.addEventListener('click', () => {
+      const rawText = validatorInput.value;
+      if (!rawText.trim()) {
+        showStatus("No paths to clean! Paste some paths first.", 'error');
+        return;
+      }
+      
+      const { groups, duplicatesRemoved, foldersMerged } = parseGroupsFromText(rawText);
+      const cleanText = generateCleanFormattedText(groups);
+      
+      validatorInput.value = cleanText;
+      updateValidateButtonState();
+      saveValidatorCache(cleanText, null);
+      
+      // Visual Feedback Animation
+      btnCleanMerge.textContent = "✔ DONE";
+      btnCleanMerge.style.background = "rgba(74, 222, 128, 0.15)";
+      btnCleanMerge.style.pointerEvents = "none"; // Prevent double-click race condition
+      
+      validatorInput.style.transition = "box-shadow 0.3s ease";
+      validatorInput.style.boxShadow = "0 0 15px rgba(168,85,247,0.4)";
+      
+      setTimeout(() => {
+        btnCleanMerge.textContent = "✨ CLEAN & MERGE";
+        btnCleanMerge.style.background = "linear-gradient(135deg, rgba(168,85,247,0.15), rgba(168,85,247,0.05))";
+        btnCleanMerge.style.pointerEvents = "auto";
+        validatorInput.style.boxShadow = "none";
+      }, 1000);
+      
+      // Generate insight message
+      let insightMsg = "✨ Cleaned! ";
+      if (duplicatesRemoved > 0 || foldersMerged > 0) {
+        insightMsg += `(Merged ${foldersMerged} folder(s), removed ${duplicatesRemoved} duplicate(s))`;
+      } else {
+        insightMsg += "(No duplicates found)";
+      }
+      
+      // Auto-copy to clipboard for convenience
+      navigator.clipboard.writeText(cleanText).then(() => {
+        showStatus(insightMsg + " - Copied to clipboard", 'success');
+      }).catch(() => {
+        showStatus(insightMsg, 'success');
+      });
+    });
+  }
+
+  function parseGroupsFromText(text) {
+    const lines = text.split('\n');
+    const groups = [];
+    let currentParent = null;
+    let duplicatesRemoved = 0;
+    let foldersMerged = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i].trim();
+      if (!line) continue;
+      
+      // Check if line contains a URL or JCR path
+      const urlMatch = line.match(/https?:\/\/[^\s"'<>\(\)\[\]\|\*]+/);
+      const contentIdx = line.indexOf('/content/');
+      
+      if (urlMatch || contentIdx !== -1) {
+        // Parent line
+        let baseUrl = urlMatch ? urlMatch[0] : line.substring(contentIdx).split(/\s+/)[0];
+        
+        // Extract JCR path to use as deduplication key
+        let rawPath = baseUrl;
+        if (contentIdx !== -1) {
+          rawPath = baseUrl.substring(baseUrl.indexOf('/content/'));
+        }
+        rawPath = rawPath.split('?')[0].split('#')[0].replace(/[)"'\]\>\s]+$/, '');
+        if (rawPath.endsWith('.html')) {
+           rawPath = rawPath.substring(0, rawPath.length - 5);
+        }
+
+        let folderJcrPath = rawPath;
+
+        // Try to find if this parent already exists
+        let existingGroup = groups.find(g => g.folderJcrPath === folderJcrPath);
+        if (existingGroup) {
+          currentParent = existingGroup;
+          // Every time we see a base URL that already exists, that's a merged folder
+          foldersMerged++;
+        } else {
+          currentParent = {
+            baseUrl: baseUrl, // Keep the original base url for output
+            folderJcrPath: folderJcrPath,
+            category: getPathType(folderJcrPath),
+            elements: []
+          };
+          groups.push(currentParent);
+        }
+      } else if (line.match(/^[*_~]*>+/) && currentParent) {
+        let elementName = line.replace(/^[*_~>\s]+/, '').replace(/[*_~\s]+$/, '');
+        if (elementName) {
+          // Deduplicate children (case-insensitive)
+          const exists = currentParent.elements.some(el => el.toLowerCase() === elementName.toLowerCase());
+          if (!exists) {
+            currentParent.elements.push(elementName);
+          } else {
+            duplicatesRemoved++;
+          }
+        }
+      }
+    }
+    return { groups, duplicatesRemoved, foldersMerged };
+  }
+
+  function generateCleanFormattedText(groups) {
+    const mainLines = ["Publishing Paths\n"];
+    
+    const categoriesOrder = [
+      { key: 'Assets', label: 'Assets:' },
+      { key: 'VDM', label: 'VDM Resources:' },
+      { key: 'CF', label: 'CFs:' },
+      { key: 'XF', label: 'XFs:' },
+      { key: 'Pages', label: 'Pages:' }
+    ];
+
+    categoriesOrder.forEach(cat => {
+      const categoryGroups = groups.filter(group => group.category === cat.key);
+      if (categoryGroups.length > 0) {
+        mainLines.push(cat.label);
+        categoryGroups.forEach(group => {
+          mainLines.push(group.baseUrl);
+          group.elements.forEach(el => {
+            mainLines.push(`>>> ${el}`);
+          });
+          mainLines.push(""); // empty line after each group
+        });
+      }
+    });
+
+    return mainLines.join('\n').trim();
+  }
 
   // Parse path strings and sub-elements from raw text
   function parsePathsFromText(text) {
@@ -596,7 +739,53 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Run initial environment check
+  // --- Drag & Drop Zone Implementation ---
+  validatorInput.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    validatorInput.style.borderColor = 'var(--accent-light)';
+    validatorInput.style.background = 'rgba(0, 229, 255, 0.05)';
+  });
+
+  validatorInput.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    validatorInput.style.borderColor = 'var(--border-accent)';
+    validatorInput.style.background = 'var(--bg-input)';
+  });
+
+  validatorInput.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    validatorInput.style.borderColor = 'var(--border-accent)';
+    validatorInput.style.background = 'var(--bg-input)';
+
+    const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.txt'));
+    if (files.length === 0) return;
+
+    let combinedText = validatorInput.value.trim();
+    if (combinedText) combinedText += '\n\n';
+
+    try {
+      for (const file of files) {
+        const text = await file.text();
+        combinedText += text + '\n\n';
+      }
+      
+      validatorInput.value = combinedText.trim();
+      updateValidateButtonState();
+      saveValidatorCache(validatorInput.value, null);
+      
+      const parsed = parsePathsFromText(validatorInput.value);
+      if (parsed.length > 0) {
+        showStatus(`Dropped ${files.length} file(s)! Detected ${parsed.length} potential paths.`, 'info');
+      }
+    } catch (err) {
+      showStatus("Failed to read dropped files.", 'error');
+    }
+  });
+
+  // Call initial environment check
   checkEnvironment();
   loadValidatorCache();
 });
