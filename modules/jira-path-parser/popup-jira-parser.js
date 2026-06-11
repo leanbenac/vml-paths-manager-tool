@@ -516,6 +516,10 @@ document.addEventListener('DOMContentLoaded', () => {
           } catch (e) {
             console.error("Failed to parse AEM URL:", cleanUrl, e);
           }
+        } else {
+          // It's a URL, but we are ignoring it. We must break the parent-child chain here
+          // so that subsequent child elements don't get accidentally attached to the previous AEM URL.
+          currentGroup = null;
         }
       }
       // Detect child elements starting with >, >>, or >>> (ignoring markdown bold/italic)
