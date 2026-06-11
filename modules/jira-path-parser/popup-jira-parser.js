@@ -356,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function hasAemUrls(text) {
     if (!text) return false;
-    const matches = text.match(/https?:\/\/[^\s"'<>\(\)\[\]\|]+/g) || [];
+    const matches = text.match(/https?:\/\/[^\s"'<>\(\)\[\]\|\*]+/g) || [];
     return matches.some(url => {
       if (url.includes('wcmmode=')) return false;
       return url.includes('/content/') || 
@@ -427,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Find an AEM URL in this line
-      const urlMatch = cleanLine.match(/https?:\/\/[^\s"'<>\(\)\[\]\|]+/);
+      const urlMatch = cleanLine.match(/https?:\/\/[^\s"'<>\(\)\[\]\|\*]+/);
       if (urlMatch) {
         let cleanUrl = urlMatch[0];
         const isAemUrl = !cleanUrl.includes('wcmmode=') && (
@@ -518,10 +518,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       }
-      // Detect child elements starting with >, >>, or >>>
-      else if (cleanLine.match(/^>+/) && currentGroup) {
-        // Strip any sequence of leading '>' and spaces
-        const elementName = cleanLine.replace(/^[>\s]+/, '');
+      // Detect child elements starting with >, >>, or >>> (ignoring markdown bold/italic)
+      else if (cleanLine.match(/^[*_~]*>+/) && currentGroup) {
+        // Strip any sequence of leading markers, '>', and spaces. Strip trailing markers too.
+        const elementName = cleanLine.replace(/^[*_~>\s]+/, '').replace(/[*_~\s]+$/, '');
         if (elementName) {
           // SMART FIX: If the folder path already ends with the element name, 
           // the publisher pasted the direct URL to the item instead of the parent folder.
