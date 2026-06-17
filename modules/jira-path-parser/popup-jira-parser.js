@@ -189,21 +189,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!ticketItems || ticketItems.length === 0) return;
     chrome.storage.local.get(['scanned_tickets_batch'], (res) => {
       let batch = res.scanned_tickets_batch || [];
-      let added = false;
+      let updated = false;
       const itemsArray = Array.isArray(ticketItems) ? ticketItems : [ticketItems];
       
       itemsArray.forEach(item => {
         if (!item) return;
         const key = typeof item === 'object' ? item.key : item;
-        const exists = batch.some(b => (typeof b === 'object' ? b.key : b) === key);
+        const url = typeof item === 'object' ? item.url : '';
+        const hasPaths = typeof item === 'object' && item.hasPaths !== undefined ? item.hasPaths : true;
         
-        if (!exists) {
-          batch.push(typeof item === 'object' ? item : { key: item, url: '' });
-          added = true;
+        const existingIndex = batch.findIndex(b => (typeof b === 'object' ? b.key : b) === key);
+        
+        if (existingIndex !== -1) {
+          const existingUrl = typeof batch[existingIndex] === 'object' ? batch[existingIndex].url : '';
+          batch[existingIndex] = { key, url: url || existingUrl, hasPaths };
+          updated = true;
+        } else {
+          batch.push({ key, url, hasPaths });
+          updated = true;
         }
       });
 
-      if (added) {
+      if (updated) {
         chrome.storage.local.set({ 'scanned_tickets_batch': batch }, () => {
           renderBatchReceipt(batch);
         });
@@ -227,20 +234,48 @@ document.addEventListener('DOMContentLoaded', () => {
       batch.forEach(b => {
         const key = typeof b === 'object' ? b.key : b;
         const url = typeof b === 'object' ? b.url : '';
+        const hasPaths = typeof b === 'object' && b.hasPaths !== undefined ? b.hasPaths : true;
         
         const div = document.createElement('div');
-        div.textContent = '- ';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'space-between';
+        div.style.padding = '2px 0';
+
+        const linkContainer = document.createElement('span');
+        linkContainer.textContent = '- ';
+        
         if (url) {
           const a = document.createElement('a');
           a.href = url;
           a.target = '_blank';
-          a.style.color = 'var(--accent-light)';
+          a.style.color = hasPaths ? 'var(--accent-light)' : '#ff6b6b';
           a.style.textDecoration = 'none';
+          if (!hasPaths) a.style.opacity = '0.8';
           a.textContent = key;
-          div.appendChild(a);
+          linkContainer.appendChild(a);
         } else {
-          div.appendChild(document.createTextNode(key));
+          const span = document.createElement('span');
+          span.style.color = hasPaths ? 'inherit' : '#ff6b6b';
+          if (!hasPaths) span.style.opacity = '0.8';
+          span.textContent = key;
+          linkContainer.appendChild(span);
         }
+        div.appendChild(linkContainer);
+
+        if (!hasPaths) {
+          const badge = document.createElement('span');
+          badge.textContent = 'NO PATHS';
+          badge.style.fontSize = '9px';
+          badge.style.background = 'rgba(255, 107, 107, 0.15)';
+          badge.style.color = '#ff6b6b';
+          badge.style.padding = '2px 4px';
+          badge.style.borderRadius = '3px';
+          badge.style.fontWeight = 'bold';
+          badge.style.marginLeft = '8px';
+          div.appendChild(badge);
+        }
+
         list.appendChild(div);
       });
     } else {
@@ -1178,11 +1213,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const origin = tab && tab.url ? new URL(tab.url).origin : '';
             renderAutoFixPills(autoFixLog, origin);
             const baseUrl = tab && tab.url ? new URL(tab.url).origin : '';
-            addTicketsToBatch(validResults.map(r => ({ key: r.key, url: baseUrl ? `${baseUrl}/browse/${r.key}` : '' })));
+            
+            // Identify which tickets actually had paths extracted
+            const keysWithPaths = new Set(data.map(d => d.ticketKey));
+            
+            // Add all valid scanned tasks to the batch list, but flag those without paths
+            addTicketsToBatch(validResults.map(r => ({ 
+              key: r.key, 
+              url: baseUrl ? `${baseUrl}/browse/${r.key}` : '',
+              hasPaths: keysWithPaths.has(r.key)
+            })));
+
+            const ticketsWithPathsCount = keysWithPaths.size;
+            
             if (autoFixLog.length > 0) {
-              showJiraStatusBold(`Scraped ${validResults.length} tasks & copied!`, false);
+              showJiraStatusBold(`Found paths in ${ticketsWithPathsCount} of ${validResults.length} tasks & copied!`, false);
             } else {
-              showJiraStatus(`Scraped ${validResults.length} active PM subtasks & copied to clipboard!`);
+              showJiraStatus(`Found paths in ${ticketsWithPathsCount} of ${validResults.length} active PM subtasks & copied!`);
             }
           })
           .catch(err => {
