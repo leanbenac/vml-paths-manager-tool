@@ -8,7 +8,8 @@ Welcome to the **VML Paths Manager Tool** repository. This file serves as the de
 * **Name:** VML Paths Manager Tool
 * **Type:** Google Chrome Extension (Manifest V3)
 * **Author:** VML Argentina - Engineering Team
-* **Purpose:** A lightweight, high-performance publish path finder and generator tailored for Project Managers, Leads, and Publishers.
+* **Current Version:** 1.2
+* **Purpose:** A lightweight, high-performance publish path finder, generator, and validator suite tailored for Project Managers, Leads, and Publishers working with Adobe AEM.
 
 ---
 
@@ -17,31 +18,55 @@ The extension follows a **strict modular structure**. Keep popup UI handlers sep
 
 ```text
 vml-paths-manager-tool/
-├── manifest.json                  # Extension configuration (Manifest V3)
+├── manifest.json                       # Extension configuration (Manifest V3)
+├── pack.ps1                            # PowerShell script to zip the extension for distribution
 ├── assets/
-│   └── logo-vml.png               # Branding assets
+│   └── logo-vml.png                    # Branding assets
 ├── core/
-│   ├── content.css                # Injected CSS styles
-│   ├── popup.css                  # UI styles (premium dark mode theme)
-│   ├── popup.html                 # Main popup UI (clean path finder layout)
-│   └── popup-ui.js                # Core UI helper (handles versioning and tooltips)
+│   ├── content.css                     # Injected CSS styles for AEM/Jira pages
+│   ├── popup.css                       # UI styles (premium dark mode theme)
+│   ├── popup.html                      # Main popup UI (tab-based layout)
+│   ├── popup-ui.js                     # Core UI helper (versioning, tooltips, tab switching)
+│   └── modules-info.js                 # Module registry and metadata
 ├── modules/
-│   └── publish-path-generator/    # Publish Path Generator/Finder module
-│       ├── content-publish-path-generator.js
-│       └── popup-publish-path-generator.js
-├── .antigravityrules              # AI Agent System Instructions (This file)
-└── Readme.md                      # End-user documentation
+│   ├── publish-path-generator/         # Publish Path Generator/Finder module
+│   │   ├── content-publish-path-generator.js
+│   │   └── popup-publish-path-generator.js
+│   ├── jira-path-parser/               # Jira AEM Path Parser & Ticket Batch Receipt module
+│   │   ├── content-jira-parser.js      # DOM scraper for Jira ticket details
+│   │   └── popup-jira-parser.js        # UI handler: scan, subtask batch, PM filter, ticket receipt
+│   └── path-validator/                 # Path Validator module
+│       ├── content-path-validator.js   # AEM URL validation content script
+│       └── popup-path-validator.js     # UI handler: multi-file load, Clean & Merge, validation
+├── .antigravityrules                   # AI Agent System Instructions (This file)
+└── Readme.md                           # End-user documentation
 ```
 
 ---
 
 ## 🔄 Core Flows
 
-### 1. Publish Path Generator / Finder
+### 1. Publish Path Generator / Finder *(currently inactive — UI tab commented out)*
+> [!NOTE]
+> This module exists in `modules/publish-path-generator/` but is **not active in the current UI**. Its tab entry in `core/popup.html` is commented out pending future activation. Do not remove the module files — they are reserved for a future release.
 * **Trigger:** User clicks "Generate Publish Path" or "Generate Asset Path" in the extension popup.
 * **Action:** `popup-publish-path-generator.js` sends requests to the content script or queries the active tab URL.
 * **Execution:** `content-publish-path-generator.js` scrapes active tab information, auto-detects references to `/content/dam/` assets using DOM scanners and Sling JCR API Queries (`.3.json` fetches), and processes parent/child structures for folder views (`.2.json` fetches).
 * **Result:** Formats the final URLs and titles, placing a double-line string ready for Jira ticket copy-paste onto the user's clipboard.
+
+### 2. Jira AEM Path Parser
+* **Trigger:** User navigates to a Jira ticket page and clicks "SCAN ACTIVE TICKET" or "SCAN ALL SUB-TASKS".
+* **Action:** `popup-jira-parser.js` queries the Jira REST API (`/rest/api/2/issue/{key}`) directly to fetch ticket summary, description, and comments without DOM parsing.
+* **Execution:** Extracts AEM publish paths from the ticket content. Applies two sequential filters on subtasks: (1) Status filter — skips `done/closed/resolved/cancelled` tickets; (2) PM filter — if configured, only processes subtasks assigned to the listed PM names (matched against `name`, `displayName`, and `emailAddress` fields from the API using partial word matching).
+* **Result:** Formats the extracted paths into a structured `.txt` output, copies to clipboard, and stores a scan cache per ticket URL. Also adds scanned ticket keys to the **Ticket Batch Receipt** panel.
+* **Ticket Batch Receipt:** A collapsible panel that accumulates all scanned ticket keys during a work session. Tickets are displayed as clickable Jira links. Provides `COPY TICKETS` (copies a clean list to clipboard) and `CLEAR` buttons for batch management. Data is persisted in `chrome.storage.local` under `scanned_tickets_batch` as an array of `{ key, url }` objects.
+* **PM Configuration:** Accessible via the "🔧 Configure PMs" toggle. PM names are saved to `chrome.storage.local` under `pmList`. The Enter key triggers save. The `scanCache` is nulled on save to force a fresh scan.
+
+### 3. Path Validator
+* **Trigger:** User pastes paths into the textarea or loads one or more `.txt` files via "LOAD TXT FILES".
+* **Action:** `popup-path-validator.js` parses the pasted text into structured groups. The **"✨ CLEAN & MERGE"** button deduplicates and merges paths across multiple pasted blocks, reporting the count of merged folders and removed duplicates.
+* **Execution:** `content-path-validator.js` is injected into the active AEM tab to verify that each path resolves to a valid HTTP 200 response.
+* **Result:** A color-coded results panel showing valid (✅) and invalid (❌) paths with status codes.
 
 ---
 
@@ -53,6 +78,7 @@ When adding a new module, you **must** follow this strict integration pattern:
 4. **UI Integration:** Register the module inside `core/popup.html`. Add the modular `<script>` block at the bottom.
 5. **Manifest Registration:** Append the newly created content script path to the `"js"` files inside the `"content_scripts"` array of `manifest.json`.
 6. **Styling Integration:** Place all new style declarations at the end of `core/content.css` or `core/popup.css`.
+7. **Documentation:** Update this file (`.antigravityrules`) and `Readme.md` to document the new module's flow.
 
 ---
 
@@ -61,9 +87,9 @@ Every developer and AI agent working on this extension must satisfy the followin
 
 * **No innerHTML (XSS Protection):** Never use `.innerHTML` or `eval()`. Use `document.createElement()` and `element.textContent` or `element.innerText` to prevent DOM XSS vulnerabilities.
 * **CSS Injection Prevention:** Never construct dynamic CSS strings using raw user inputs. Opt for static styling rules in `content.css` and use class assignment (`classList.add`) or strictly validated types.
-* **Safe Iframe Traversal:** Do not attempt cross-origin traversal which triggers browser security errors. Only query iframes that satisfy the **Same-Origin (CORS)** rule. Let other iframe entities fail silently.
+* **Safe Iframe Traversal:** Do not attempt cross-origin traversal which triggers browser security errors. Only query iframes that satisfy the **Same-Origin (CORS)** rule. Let other iframe entities fail silently inside `try/catch` blocks.
 * **Isolated World Constraints:** Keep in mind that content scripts execute in isolated scopes provided by Chrome. Do not rely on variables declared in the page's host scope, nor mutate properties on the host window object directly.
-* **Minimal Scope Permissions:** Limit manifest configuration strictly to required privileges (`storage`, `activeTab`, `scripting`, `webNavigation`).
+* **Minimal Scope Permissions:** Limit manifest configuration strictly to required privileges (`storage`, `activeTab`, `scripting`, `webNavigation`). Host permissions are scoped to `jira.uhub.biz`, `*.atlassian.net`, and `*.adobeaemcloud.com` only.
 
 ---
 

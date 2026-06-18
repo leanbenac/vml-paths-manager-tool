@@ -123,6 +123,23 @@
           <button id="btnScanSubtasks" class="btn-search" style="width: 100%; background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: #fff; border-color: var(--gold-light);" disabled>SCAN ALL SUB-TASKS (0)</button>
         </div>
 
+        <!-- Batch Receipt Panel -->
+        <div id="batchReceiptContainer" style="margin-bottom: 12px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgba(255, 255, 255, 0.05); cursor: pointer;" id="btnToggleBatchReceipt">
+            <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);"><span id="batchCountBadge" style="background: var(--accent); color: white; border-radius: 10px; padding: 2px 6px; font-size: 9px; margin-right: 6px;">0</span> Tickets in Batch</span>
+            <span id="batchReceiptChevron" style="font-size: 10px; transition: transform 0.2s;">▼</span>
+          </div>
+          <div id="batchReceiptContent" style="padding: 10px; display: none; border-top: 1px solid var(--border);">
+            <div id="batchTicketList" style="font-size: 11px; color: var(--text-muted); font-family: monospace; max-height: 80px; overflow-y: auto; margin-bottom: 8px; line-height: 1.5;">
+              No tickets scanned yet.
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="btnCopyBatch" class="btn-search" style="flex: 2; padding: 4px; font-size: 9px;">📋 COPY TICKETS</button>
+              <button id="btnClearBatch" class="btn-search" style="flex: 1; padding: 4px; font-size: 9px; border-color: rgba(255, 107, 107, 0.3); color: #ff6b6b; background: rgba(255, 107, 107, 0.03);">CLEAR</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Settings Panel Toggle -->
         <div style="text-align: right; margin-bottom: 8px;">
           <button id="btnToggleSettings" style="background: none; border: none; color: var(--text-secondary); font-size: 10px; cursor: pointer; text-decoration: underline; padding: 0; outline: none;">🔧 Configure PMs</button>
@@ -187,9 +204,10 @@
           <textarea id="validatorInput" placeholder="Paste publish paths here (one per line) or load a TXT file..." rows="3" style="width: 100%; border: 1px solid var(--border-accent); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); padding: 8px; font-size: 11px; line-height: 1.4; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; resize: none; min-height: 75px; margin-bottom: 8px;"></textarea>
           
           <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-            <input type="file" id="validatorFileInput" accept=".txt" style="display: none;">
-            <button id="btnLoadValidatorTxt" class="btn-search" style="flex: 1; font-size: 9px; padding: 6px 10px;">LOAD TXT FILE</button>
-            <button id="btnClearValidator" class="btn-search" style="flex: 1; font-size: 9px; padding: 6px 10px; border-color: rgba(255, 107, 107, 0.3); color: #ff6b6b; background: rgba(255, 107, 107, 0.03);">CLEAR</button>
+            <input type="file" id="validatorFileInput" accept=".txt" multiple style="display: none;">
+            <button id="btnLoadValidatorTxt" class="btn-search" style="flex: 1; font-size: 9px; padding: 6px 6px;">LOAD TXT(s)</button>
+            <button id="btnCleanMerge" class="btn-search" style="flex: 1.5; font-size: 9px; padding: 6px 6px; background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(168,85,247,0.05)); color: #d8b4fe; border-color: rgba(168,85,247,0.4); box-shadow: 0 0 10px rgba(168,85,247,0.1);">✨ CLEAN & MERGE</button>
+            <button id="btnClearValidator" class="btn-search" style="flex: 1; font-size: 9px; padding: 6px 6px; border-color: rgba(255, 107, 107, 0.3); color: #ff6b6b; background: rgba(255, 107, 107, 0.03);">CLEAR</button>
           </div>
         </div>
 

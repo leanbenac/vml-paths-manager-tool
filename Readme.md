@@ -69,6 +69,9 @@ Este módulo automatiza la **lectura y consolidación de paths de publicación**
   3. **`Editor URL Converted`**: Transforma URLs de edición (`editor.html`) a rutas correctas (`assets.html` o `sites.html`).
   4. **`Item URL Unified`**: Fusiona ítems duplicados bajo la misma carpeta padre.
   5. **`⚠️ Conflict: Item in both Publish and Deactivate`**: Advierte si un PM solicitó publicar y desactivar exactamente el mismo archivo, para que el equipo pueda consultarle.
+* **Recibo de Lote (Batch Receipt) Inteligente**:
+  - Acumula los tickets escaneados durante la sesión de trabajo en un panel colapsable para copiarlos fácilmente.
+  - Si un ticket escaneado **no contiene paths de publicación**, se lista con una etiqueta roja de alerta `NO PATHS`, dándole al usuario visibilidad inmediata sobre tickets incompletos o mal cargados por QA.
 * **Persistencia y Caché Local**:
   - Guarda automáticamente los resultados de los escaneos en la memoria local del navegador (`chrome.storage.local`) asociados a la URL del ticket.
 

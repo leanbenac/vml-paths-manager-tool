@@ -184,6 +184,165 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize subtasks button state
   updateSubtasksButton([]);
 
+  // --- Batch Receipt Logic ---
+  function addTicketsToBatch(ticketItems) {
+    if (!ticketItems || ticketItems.length === 0) return;
+    chrome.storage.local.get(['scanned_tickets_batch'], (res) => {
+      let batch = res.scanned_tickets_batch || [];
+      let updated = false;
+      const itemsArray = Array.isArray(ticketItems) ? ticketItems : [ticketItems];
+      
+      itemsArray.forEach(item => {
+        if (!item) return;
+        const key = typeof item === 'object' ? item.key : item;
+        const url = typeof item === 'object' ? item.url : '';
+        const hasPaths = typeof item === 'object' && item.hasPaths !== undefined ? item.hasPaths : true;
+        
+        const existingIndex = batch.findIndex(b => (typeof b === 'object' ? b.key : b) === key);
+        
+        if (existingIndex !== -1) {
+          const existingUrl = typeof batch[existingIndex] === 'object' ? batch[existingIndex].url : '';
+          batch[existingIndex] = { key, url: url || existingUrl, hasPaths };
+          updated = true;
+        } else {
+          batch.push({ key, url, hasPaths });
+          updated = true;
+        }
+      });
+
+      if (updated) {
+        chrome.storage.local.set({ 'scanned_tickets_batch': batch }, () => {
+          renderBatchReceipt(batch);
+        });
+      } else {
+        renderBatchReceipt(batch);
+      }
+    });
+  }
+
+  function renderBatchReceipt(batch) {
+    const container = document.getElementById('batchReceiptContainer');
+    const badge = document.getElementById('batchCountBadge');
+    const list = document.getElementById('batchTicketList');
+    
+    if (!container || !badge || !list) return;
+
+    if (batch && batch.length > 0) {
+      container.style.display = 'block';
+      badge.textContent = batch.length;
+      list.textContent = ''; // clear
+      batch.forEach(b => {
+        const key = typeof b === 'object' ? b.key : b;
+        const url = typeof b === 'object' ? b.url : '';
+        const hasPaths = typeof b === 'object' && b.hasPaths !== undefined ? b.hasPaths : true;
+        
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'space-between';
+        div.style.padding = '2px 0';
+
+        const linkContainer = document.createElement('span');
+        linkContainer.textContent = '- ';
+        
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.style.color = hasPaths ? 'var(--accent-light)' : '#ff6b6b';
+          a.style.textDecoration = 'none';
+          if (!hasPaths) a.style.opacity = '0.8';
+          a.textContent = key;
+          linkContainer.appendChild(a);
+        } else {
+          const span = document.createElement('span');
+          span.style.color = hasPaths ? 'inherit' : '#ff6b6b';
+          if (!hasPaths) span.style.opacity = '0.8';
+          span.textContent = key;
+          linkContainer.appendChild(span);
+        }
+        div.appendChild(linkContainer);
+
+        if (!hasPaths) {
+          const badge = document.createElement('span');
+          badge.textContent = 'NO PATHS';
+          badge.style.fontSize = '9px';
+          badge.style.background = 'rgba(255, 107, 107, 0.15)';
+          badge.style.color = '#ff6b6b';
+          badge.style.padding = '2px 4px';
+          badge.style.borderRadius = '3px';
+          badge.style.fontWeight = 'bold';
+          badge.style.marginLeft = '8px';
+          div.appendChild(badge);
+        }
+
+        list.appendChild(div);
+      });
+    } else {
+      container.style.display = 'none';
+      badge.textContent = '0';
+      list.textContent = 'No tickets scanned yet.';
+    }
+  }
+
+  function loadBatchReceipt() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['scanned_tickets_batch'], (res) => {
+        renderBatchReceipt(res.scanned_tickets_batch || []);
+      });
+    }
+  }
+
+  const btnToggleBatchReceipt = document.getElementById('btnToggleBatchReceipt');
+  const batchReceiptContent = document.getElementById('batchReceiptContent');
+  const batchReceiptChevron = document.getElementById('batchReceiptChevron');
+  const btnCopyBatch = document.getElementById('btnCopyBatch');
+  const btnClearBatch = document.getElementById('btnClearBatch');
+
+  if (btnToggleBatchReceipt && batchReceiptContent && batchReceiptChevron) {
+    btnToggleBatchReceipt.addEventListener('click', () => {
+      const isVisible = batchReceiptContent.style.display === 'block';
+      batchReceiptContent.style.display = isVisible ? 'none' : 'block';
+      batchReceiptChevron.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(180deg)';
+    });
+  }
+
+  if (btnCopyBatch) {
+    btnCopyBatch.addEventListener('click', () => {
+      chrome.storage.local.get(['scanned_tickets_batch'], (res) => {
+        const batch = res.scanned_tickets_batch || [];
+        if (batch.length === 0) return;
+        
+        const text = "Included Tickets:\n" + batch.map(b => {
+          const key = typeof b === 'object' ? b.key : b;
+          const hasPaths = typeof b === 'object' && b.hasPaths !== undefined ? b.hasPaths : true;
+          return `- ${key}${hasPaths ? '' : ' - NO PATHS'}`;
+        }).join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+          const originalText = btnCopyBatch.textContent;
+          btnCopyBatch.textContent = "✔ COPIED";
+          btnCopyBatch.style.background = "rgba(74, 222, 128, 0.15)";
+          btnCopyBatch.style.color = "var(--accent-green)";
+          setTimeout(() => {
+            btnCopyBatch.textContent = originalText;
+            btnCopyBatch.style.background = "";
+            btnCopyBatch.style.color = "";
+          }, 1500);
+        });
+      });
+    });
+  }
+
+  if (btnClearBatch) {
+    btnClearBatch.addEventListener('click', () => {
+      chrome.storage.local.set({ 'scanned_tickets_batch': [] }, () => {
+        renderBatchReceipt([]);
+        if (batchReceiptContent) batchReceiptContent.style.display = 'none';
+        if (batchReceiptChevron) batchReceiptChevron.style.transform = 'rotate(0deg)';
+      });
+    });
+  }
+
   // --- CACHE MANAGEMENT ---
   function saveScanCache(url, issueKey, data, subtasks, fixLog) {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -291,6 +450,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnSaveSettings && inputPmList) {
+    inputPmList.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        btnSaveSettings.click();
+      }
+    });
+
     btnSaveSettings.addEventListener('click', () => {
       const rawStr = inputPmList.value || '';
       const listStr = formatPmListNames(rawStr);
@@ -298,7 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputPmList.value = listStr;
       }
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.set({ pmList: listStr }, () => {
+        chrome.storage.local.set({ pmList: listStr, scanCache: null }, () => {
           showJiraStatus("Configuration saved successfully!");
           pmListArray = listStr.split(',').map(name => name.trim().toLowerCase()).filter(Boolean);
           if (pmSettingsPanel) {
@@ -832,6 +998,8 @@ document.addEventListener('DOMContentLoaded', () => {
           .then(() => {
             const origin = tab && tab.url ? new URL(tab.url).origin : '';
             renderAutoFixPills(autoFixLog, origin);
+            const baseUrl = tab && tab.url ? new URL(tab.url).origin : '';
+            addTicketsToBatch({ key: finalIssueKey, url: baseUrl ? `${baseUrl}/browse/${finalIssueKey}` : '' });
             if (autoFixLog.length > 0) {
               showJiraStatusBold("Copied to clipboard!", false);
             } else {
@@ -925,9 +1093,23 @@ document.addEventListener('DOMContentLoaded', () => {
               let isPM = true;
               const assigneeName = json.fields?.assignee?.name || '';
               const assigneeDisplayName = json.fields?.assignee?.displayName || '';
+              const assigneeEmail = json.fields?.assignee?.emailAddress || '';
+              
               if (pmListArray.length > 0) {
-                isPM = pmListArray.includes(assigneeName.toLowerCase().trim()) || 
-                       pmListArray.includes(assigneeDisplayName.toLowerCase().trim());
+                const lowerName = assigneeName.toLowerCase();
+                const lowerDisplayName = assigneeDisplayName.toLowerCase();
+                const lowerEmail = assigneeEmail.toLowerCase();
+                
+                isPM = pmListArray.some(pm => {
+                  // Split the configured PM name into words (e.g. "Alison Zora" -> ["alison", "zora"])
+                  const parts = pm.split(/\s+/).filter(Boolean);
+                  // Ensure EVERY part is found somewhere in the assignee's details
+                  return parts.every(part => 
+                    lowerName.includes(part) || 
+                    lowerDisplayName.includes(part) || 
+                    lowerEmail.includes(part)
+                  );
+                });
               }
               
               if (!isPM) {
@@ -1032,10 +1214,24 @@ document.addEventListener('DOMContentLoaded', () => {
           .then(() => {
             const origin = tab && tab.url ? new URL(tab.url).origin : '';
             renderAutoFixPills(autoFixLog, origin);
+            const baseUrl = tab && tab.url ? new URL(tab.url).origin : '';
+            
+            // Identify which tickets actually had paths extracted
+            const keysWithPaths = new Set(data.map(d => d.ticketKey));
+            
+            // Add all valid scanned tasks to the batch list, but flag those without paths
+            addTicketsToBatch(validResults.map(r => ({ 
+              key: r.key, 
+              url: baseUrl ? `${baseUrl}/browse/${r.key}` : '',
+              hasPaths: keysWithPaths.has(r.key)
+            })));
+
+            const ticketsWithPathsCount = keysWithPaths.size;
+            
             if (autoFixLog.length > 0) {
-              showJiraStatusBold(`Scraped ${validResults.length} tasks & copied!`, false);
+              showJiraStatusBold(`Found paths in ${ticketsWithPathsCount} of ${validResults.length} tasks & copied!`, false);
             } else {
-              showJiraStatus(`Scraped ${validResults.length} active PM subtasks & copied to clipboard!`);
+              showJiraStatus(`Found paths in ${ticketsWithPathsCount} of ${validResults.length} active PM subtasks & copied!`);
             }
           })
           .catch(err => {
@@ -1196,5 +1392,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  loadBatchReceipt();
   checkActiveTab();
 });
