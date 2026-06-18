@@ -314,7 +314,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (batch.length === 0) return;
         
         const text = "Included Tickets:\n" + batch.map(b => {
-          return `- ${typeof b === 'object' ? b.key : b}`;
+          const key = typeof b === 'object' ? b.key : b;
+          const hasPaths = typeof b === 'object' && b.hasPaths !== undefined ? b.hasPaths : true;
+          return `- ${key}${hasPaths ? '' : ' - NO PATHS'}`;
         }).join('\n');
         navigator.clipboard.writeText(text).then(() => {
           const originalText = btnCopyBatch.textContent;
