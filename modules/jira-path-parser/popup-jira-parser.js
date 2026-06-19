@@ -666,6 +666,10 @@ document.addEventListener('DOMContentLoaded', () => {
               let existingGroup = results.find(g => g.folderJcrPath === folderJcrPath && g.mode === currentMode);
               if (existingGroup) {
                 currentGroup = existingGroup;
+                if (currentTicketKey && (!currentGroup.ticketKeys || !currentGroup.ticketKeys.includes(currentTicketKey))) {
+                  currentGroup.ticketKeys = currentGroup.ticketKeys || [currentGroup.ticketKey];
+                  currentGroup.ticketKeys.push(currentTicketKey);
+                }
               } else {
                 currentGroup = {
                   baseUrl: normalizedBaseUrl,
@@ -673,6 +677,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   folderJcrPath: folderJcrPath,
                   category: getCategory(folderJcrPath, cleanUrl),
                   ticketKey: currentTicketKey,
+                  ticketKeys: [currentTicketKey],
                   mode: currentMode,
                   elements: []
                 };
@@ -688,10 +693,10 @@ document.addEventListener('DOMContentLoaded', () => {
           currentGroup = null;
         }
       }
-      // Detect child elements starting with >, >>, or >>> (ignoring markdown bold/italic)
-      else if (cleanLine.match(/^[*_~]*>+/) && currentGroup) {
+      // Detect child elements starting with >, >>, or >>> (ignoring markdown bold/italic and Jira {*} markers)
+      else if (cleanLine.match(/^[*_~{}]*>+/) && currentGroup) {
         // Strip any sequence of leading markers, '>', and spaces. Strip trailing markers too.
-        const elementName = cleanLine.replace(/^[*_~>\s]+/, '').replace(/[*_~\s]+$/, '');
+        const elementName = cleanLine.replace(/^[*_~>{}\s]+/, '').replace(/[*_~{}\s]+$/, '');
         if (elementName) {
           // SMART FIX: If the folder path already ends with the element name, 
           // the publisher pasted the direct URL to the item instead of the parent folder.
@@ -754,6 +759,13 @@ document.addEventListener('DOMContentLoaded', () => {
               parentGroup.elements.push(el);
             }
           });
+          
+          if (childGroup.ticketKeys) {
+            parentGroup.ticketKeys = parentGroup.ticketKeys || [parentGroup.ticketKey];
+            childGroup.ticketKeys.forEach(k => {
+              if (k && !parentGroup.ticketKeys.includes(k)) parentGroup.ticketKeys.push(k);
+            });
+          }
           
           if (childGroup.ticketKey) autoFixLog.push({ key: childGroup.ticketKey, type: 'Item URL Unified' });
           else autoFixLog.push({ key: null, type: 'Item URL Unified' });
@@ -943,20 +955,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const desc = responseData.description || '';
         const commentsList = responseData.comments || [];
         let chosenText = '';
-        for (let idx = commentsList.length - 1; idx >= 0; idx--) {
-          const commentBody = commentsList[idx] || '';
-          if (hasAemUrls(commentBody)) {
-            chosenText = commentBody;
-            console.log(`Active Jira Ticket: Found publish paths in comment at index ${idx}. Only scanning this comment.`);
-            break;
+        if (commentsList.length > 0) {
+          const lastComment = commentsList[commentsList.length - 1] || '';
+          if (hasAemUrls(lastComment)) {
+            chosenText = lastComment;
+            console.log(`Active Jira Ticket: Found publish paths in the last comment.`);
           }
         }
         const summaryStr = responseData.summary || '';
-        if (!chosenText) {
-          chosenText = summaryStr + '\n' + desc;
-          console.log(`Active Jira Ticket: No comments with publish paths found. Scanning the description.`);
-        } else {
+        if (chosenText) {
           chosenText = summaryStr + '\n' + chosenText;
+        } else {
+          chosenText = '';
+          console.log(`Active Jira Ticket: No comments with URLs found. Explicitly ignoring description to avoid cloned paths.`);
         }
         // Resolve issue key safely
         const finalIssueKey = responseData.issueKey || issueKey;
@@ -1120,20 +1131,19 @@ document.addEventListener('DOMContentLoaded', () => {
               const desc = json.fields?.description || '';
               const commentsList = (json.fields?.comment?.comments || []).map(c => c.body || '');
               let chosenText = '';
-              for (let idx = commentsList.length - 1; idx >= 0; idx--) {
-                const commentBody = commentsList[idx] || '';
-                if (hasAemUrls(commentBody)) {
-                  chosenText = commentBody;
-                  console.log(`Subtask ${key}: Found publish paths in comment at index ${idx}. Only scanning this comment.`);
-                  break;
+              if (commentsList.length > 0) {
+                const lastComment = commentsList[commentsList.length - 1] || '';
+                if (hasAemUrls(lastComment)) {
+                  chosenText = lastComment;
+                  console.log(`Subtask ${key}: Found publish paths in the last comment.`);
                 }
               }
               const summary = json.fields?.summary || '';
-              if (!chosenText) {
-                chosenText = summary + '\n' + desc;
-                console.log(`Subtask ${key}: No comments with publish paths found. Scanning the description.`);
-              } else {
+              if (chosenText) {
                 chosenText = summary + '\n' + chosenText;
+              } else {
+                chosenText = '';
+                console.log(`Subtask ${key}: No comments with URLs found. Explicitly ignoring description to avoid cloned paths.`);
               }
               const locale = detectLocaleFromSummary(summary) || parentLocale;
               return { key: key, text: chosenText, locale: locale };
@@ -1142,7 +1152,6 @@ document.addEventListener('DOMContentLoaded', () => {
               return null;
             }
           });
-
           const batchResults = await Promise.all(promises);
           fetchedTexts.push(...batchResults);
           
@@ -1150,7 +1159,8 @@ document.addEventListener('DOMContentLoaded', () => {
           showJiraStatus(`Scanning subtasks (${completedCount}/${keys.length})...`);
         }
 
-        const validResults = fetchedTexts.filter(r => r && r.text && r.text.trim().length > 0);
+        // Filter out skipped tasks (those that returned '')
+        const validResults = fetchedTexts.filter(r => r && typeof r === 'object');
         
         // Pre-warm the cache for each individual subtask so they load instantly if the user opens them
         const backupLog = [...autoFixLog];
@@ -1217,7 +1227,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const baseUrl = tab && tab.url ? new URL(tab.url).origin : '';
             
             // Identify which tickets actually had paths extracted
-            const keysWithPaths = new Set(data.map(d => d.ticketKey));
+            const keysWithPaths = new Set();
+            data.forEach(d => {
+              if (d.ticketKeys) {
+                d.ticketKeys.forEach(k => k && keysWithPaths.add(k));
+              } else if (d.ticketKey) {
+                keysWithPaths.add(d.ticketKey);
+              }
+            });
             
             // Add all valid scanned tasks to the batch list, but flag those without paths
             addTicketsToBatch(validResults.map(r => ({ 
