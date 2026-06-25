@@ -30,3 +30,6 @@ extension.zip
 .env
 .cache/
 scratch/
+
+# Archivos generados por el empaquetador
+*.zip

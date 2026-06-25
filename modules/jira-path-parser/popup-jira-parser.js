@@ -698,25 +698,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Strip any sequence of leading markers, '>', and spaces. Strip trailing markers too.
         const elementName = cleanLine.replace(/^[*_~>{}\s]+/, '').replace(/[*_~{}\s]+$/, '');
         if (elementName) {
-          // SMART FIX: If the folder path already ends with the element name, 
-          // the publisher pasted the direct URL to the item instead of the parent folder.
-          if (currentGroup.folderJcrPath.toLowerCase().endsWith('/' + elementName.toLowerCase().trim())) {
-            currentGroup.folderJcrPath = currentGroup.folderJcrPath.substring(0, currentGroup.folderJcrPath.lastIndexOf('/'));
-            const lastSlashIdx = currentGroup.baseUrl.lastIndexOf('/');
-            if (lastSlashIdx !== -1) {
-              currentGroup.baseUrl = currentGroup.baseUrl.substring(0, lastSlashIdx);
-            }
-            if (currentTicketKey) autoFixLog.push({ key: currentTicketKey, type: 'Item URL Fixed' });
-            else autoFixLog.push({ key: null, type: 'Item URL Fixed' });
-
-            const existingMatch = results.find(g => g !== currentGroup && g.folderJcrPath === currentGroup.folderJcrPath && g.mode === currentGroup.mode);
-            if (existingMatch) {
-              existingMatch.elements.push(...currentGroup.elements);
-              const idx = results.indexOf(currentGroup);
-              if (idx !== -1) results.splice(idx, 1);
-              currentGroup = existingMatch;
-            }
-          }
 
           const childJcrPath = `${currentGroup.folderJcrPath}/${elementName}`;
           
